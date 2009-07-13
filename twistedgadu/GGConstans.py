@@ -3,7 +3,7 @@
 #    Marcin Krupowicz,
 #    Mateusz Strycharski
 #
-# $Id$
+# $Id: GGConstans.py 56 2008-01-14 13:10:51Z ghandal $
 
 from Helpers import Enum
 

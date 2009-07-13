@@ -3,7 +3,7 @@
 #    Marcin Krupowicz,
 #    Mateusz Strycharski
 #
-# $Id$
+# $Id: Exceptions.py 73 2008-01-15 19:00:25Z ghandal $
 
 class GGException(Exception):
 	"""

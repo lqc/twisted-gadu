@@ -3,7 +3,7 @@
 #    Marcin Krupowicz,
 #    Mateusz Strycharski
 #
-# $Id$
+# $Id: Contacts.py 94 2008-01-17 00:23:38Z cinu $
 
 from GGConstans import *
 from Exceptions import *

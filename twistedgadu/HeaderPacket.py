@@ -3,30 +3,25 @@
 #    Marcin Krupowicz,
 #    Mateusz Strycharski
 #
-# $Id$
+# $Id: HeaderPacket.py 94 2008-01-17 00:23:38Z cinu $
 
 import types
 import struct
-from Networking import Connection
 
 class GGHeader(object):
 	"""
 	Kazdy pakiet wysylany/pobierany do/od serwera zawiera na poczatku
 	naglowek - tym naglowkiem jest wlasnie struktura GGHeader.
 	"""
-	
 	def __init__(self, type_=0, length=0):
 		assert type(type_) == types.IntType
 		assert type(length) == types.IntType
 		
 		self.type = type_
 		self.length = length
-		self.connection = None
-	
-	def read(self, connection):
-		assert type(connection) == Connection
-		data = connection.read(8, timeout = 0) #bez timeoutu
-		self.type, self.length = struct.unpack("<II", data)
+
+	def read(self, data):
+		self.type, self.length = struct.unpack("<II", data[:8])
 	
 	def __repr__(self):
-		return struct.pack("<II", self.type, self.length)
+            return struct.pack("<II", self.type, self.length)

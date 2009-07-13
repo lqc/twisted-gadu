@@ -3,12 +3,12 @@
 #    Marcin Krupowicz,
 #    Mateusz Strycharski
 #
-# $Id$
+# $Id: Helpers.py 75 2008-01-15 22:11:37Z cinu $
 
 import types
-import socket
 import struct
 import hashlib
+import socket
 import re
 
 #============================

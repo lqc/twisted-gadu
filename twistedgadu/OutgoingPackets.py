@@ -3,14 +3,14 @@
 #    Marcin Krupowicz,
 #    Mateusz Strycharski
 #
-# $Id$
+# $Id: OutgoingPackets.py 65 2008-01-14 19:44:25Z ghandal $
 
 import time
 import types
 import sys
 import struct
 from HeaderPacket import GGHeader
-from Networking import Connection
+#from Networking import Connection
 from GGConstans import *
 import Helpers
 from Helpers import Enum
@@ -78,10 +78,7 @@ class GGLogin(GGOutgoingPacket):
 		self.time = time
 		self.version = 0x25 # GG 7.7
 
-	def send(self, connection):
-		assert type(connection) == Connection
-		
-		
+	def get(self):
 		"""
 		data = struct.pack("<IBIIIBIHIHBB%dsI" % (len(self.description) + 1),
 		#data = struct.pack("<IB64sIIBIHIHBB%dsI" % (len(self.description) + 1),
@@ -106,8 +103,7 @@ class GGLogin(GGOutgoingPacket):
 			self.uin, Helpers.gg_login_hash(self.password, self.seed), self.status, self.version, 0x00,
 			Helpers.ip_to_int32(self.local_ip), self.local_port, Helpers.ip_to_int32(self.external_ip), self.external_port,
 			self.image_size, 0xbe, self.description, self.time)
-		
-		connection.send(repr(GGHeader(GGOutgoingPackets.GGLogin60, len(data))) + data)
+		return (repr(GGHeader(GGOutgoingPackets.GGLogin60, len(data))) + data)
 
 class GGNewStatus(GGOutgoingPacket):
 	"""
@@ -172,9 +168,8 @@ class GGPing(GGOutgoingPacket):
 	def __init__(self):
 		pass
 	
-	def send(self, connection):
-		assert type(connection) == Connection
-		connection.send(repr(GGHeader(GGOutgoingPackets.GGPing, 0)))
+	def get(self):
+		return repr(GGHeader(GGOutgoingPackets.GGPing, 0))
 
 class GGListEmpty(GGOutgoingPacket):
 	"""
@@ -183,9 +178,8 @@ class GGListEmpty(GGOutgoingPacket):
 	def __init__(self):
 		pass
 	
-	def send(self, connection):
-		assert type(connection) == Connection
-		connection.send(repr(GGHeader(GGOutgoingPackets.GGListEmpty, 0)))
+	def get(self):
+            return repr(GGHeader(GGOutgoingPackets.GGListEmpty, 0))
 
 class GGNotifyFirst(GGOutgoingPacket):
 	"""
@@ -204,12 +198,11 @@ class GGNotifyFirst(GGOutgoingPacket):
 		
 		self.__gg_notify_list = gg_notify_list
 	
-	def send(self, connection):
-		assert type(connection) == Connection
+	def get(self):
 		data = ""
 		for notify in self.__gg_notify_list:
 			data += struct.pack("<IB", notify[0], notify[1])
-		connection.send(repr(GGHeader(GGOutgoingPackets.GGNotifyFirst, len(data))) + data)
+		return (repr(GGHeader(GGOutgoingPackets.GGNotifyFirst, len(data))) + data)
 
 class GGNotifyLast(GGOutgoingPacket):
 	"""
@@ -230,12 +223,11 @@ class GGNotifyLast(GGOutgoingPacket):
 		
 		self.__gg_notify_list = gg_notify_list
 	
-	def send(self, connection):
-		assert type(connection) == Connection
+	def get(self):
 		data = ""
 		for notify in self.__gg_notify_list:
 			data += struct.pack("<IB", int(notify[0]), notify[1])
-		connection.send(repr(GGHeader(GGOutgoingPackets.GGNotifyLast, len(data))) + data)
+		return (repr(GGHeader(GGOutgoingPackets.GGNotifyLast, len(data))) + data)
 
 class GGAddNotify(GGOutgoingPacket):
 	"""
