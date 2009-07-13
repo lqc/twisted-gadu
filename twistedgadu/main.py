@@ -23,7 +23,7 @@ gg_uin = 4634020
 gg_passwd = 'xxxxxx'
 gg_status = GGStatuses.Avail
 gg_desc = 'test'
-contacts_list = ContactsList([Contact({'uin':3993939,'shown_name':'Tralala'}), Contact({'uin':4668758,'shown_name':'Anna'})])
+contacts_list = ContactsList([Contact({'uin':3993939,'shown_name':'Tralala'}), Contact({'uin':4668758,'shown_name':'Anna'}), Contact({'uin':5120225,'shown_name':'kkszysiu'})])
 #contacts_list = ContactsList()
 
 class GGClient(Protocol):
@@ -73,25 +73,50 @@ class GGClient(Protocol):
             in_packet.read(data, header.length)
             self.seed = in_packet.seed
             d = defer.Deferred()
-            d.callback(self.seed)
-            d.addCallback(self._conn.on_auth_got_seed)
+            d.callback(self)
+            d.addCallback(self._conn.on_auth_got_seed, self.seed)
             d = None
-            self._login(self.seed)
-        if header.type == GGIncomingPackets.GGLoginOK:
+        elif header.type == GGIncomingPackets.GGLoginOK:
             print 'packet: GGLoginOK'
             d = defer.Deferred()
-            d.callback(None)
-            d.addCallback(self._conn.on_authorised)
+            d.callback(self)
+            d.addCallback(self._conn.on_login_ok)
             self._send_contacts_list()
             print 'wyslano liste kontaktow'
             self._ping()
-        if header.type == GGIncomingPackets.GGUserListReply:
+        elif header.type == GGIncomingPackets.GGLoginFailed:
+            print 'packet: GGLoginFailed'
+            d = defer.Deferred()
+            d.callback(self)
+            d.addCallback(self._conn.on_login_failed)
+        elif header.type == GGIncomingPackets.GGNeedEMail:
+            print 'packet: GGNeedEMail'
+            d = defer.Deferred()
+            d.callback(self)
+            d.addCallback(self._conn.on_need_email)
+        elif header.type == GGIncomingPackets.GGDisconnecting:
+            print 'packet: GGDisconnecting'
+            in_packet = GGDisconnecting()
+            in_packet.read(data, header.length)
+            d = defer.Deferred()
+            d.callback(self)
+            d.addCallback(self._conn.on_disconnecting)
+        elif header.type == GGIncomingPackets.GGNotifyReply60 or header.type == GGIncomingPackets.GGNotifyReply77:
+            in_packet = GGNotifyReply(self.__contacts_list, header.type)
+            in_packet.read(data, header.length)
+            self.__contacts_list = in_packet.contacts
+            d = defer.Deferred()
+            d.callback(self)
+            d.addCallback(self._conn.on_notify_reply, self.__contacts_list)
+        elif header.type == GGIncomingPackets.GGUserListReply:
             print 'packet: GGUserListReply'
             d = defer.Deferred()
             d.callback(None)
-            d.addCallback(self.on_userlistreply)
+            d.addCallback(self.on_userlist_reply)
+        else:
+            print 'packet: unknown: type %s, length %s' % (header.type, header.length)
 
-    def _login(self, seed):
+    def login(self, seed):
         print '_login'
 	out_packet = GGLogin(self.__uin, self.password, self.status, seed, self.desc, self.__local_ip, \
                             self.__local_port, self.__external_ip, self.__external_port, self.__image_size)
@@ -130,16 +155,26 @@ class GGClient(Protocol):
         out_packet = GGPing()
         self.sendPacket(out_packet.get())
         print "[PING]"
-        reactor.callLater(10, self._ping)
+        reactor.callLater(96, self._ping)
         
-    """Methods that should be overwritten by user"""
+    """Methods that can be used by user"""
+    def change_status(self, status, description = ""):
+            """
+            Metoda powoduje zmiane statusu i opisu. Jako parametry przyjmuje nowy status i nowy opis (domyslnie - opis pusty).
+            """
+            assert type(status) == types.IntType and status in GGStatuses
+            assert type(description) == types.StringType and len(description) <= 70
 
+            out_packet  = GGNewStatus(status, description)
+            self.sendPacket(out_packet.get())
+            self.status = status
+            self.desc = description
 
-    def on_authorised(self, null):
-        print 'zalogowano!'
+    def get_actual_status(self):
+        return self.status
 
-    def on_userlistreply(self, null):
-        print 'odebrano liste kontaktow!'
+    def get_actual_status_desc(self):
+        return self.desc
 
 class GGClientFactory(ClientFactory):
     protocol = GGClient

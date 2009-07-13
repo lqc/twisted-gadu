@@ -6,7 +6,7 @@
 # $Id: IncomingPackets.py 94 2008-01-17 00:23:38Z cinu $
 
 import struct
-#from Contacts import *
+from Contacts import *
 from Helpers import Enum
 
 GGIncomingPackets = Enum({
@@ -148,14 +148,18 @@ class GGNotifyReply(GGIncomingPacket):
 		else:
 			self.__contacts = contacts
 	
-	def read(self, connection, size):
+	def read(self, data, size):
+            if size != 0:
+                data = data[8:]
 		dummy_size = (self.notify_reply_version == GGIncomingPackets.GGNotifyReply60 and 1 or 4)
 		
 		count = 0 #ile juz odebralismy bajtow
 		finish = False #czy juz konczymy odbieranie
 		
 		while not finish:
-			tuple = struct.unpack("<IBIHBB%dx" % (dummy_size,), connection.read(13 + dummy_size))
+                        tmp_data = data[:(13 + dummy_size)]
+                        data = data[(13 + dummy_size):]
+			tuple = struct.unpack("<IBIHBB%dx" % (dummy_size,), tmp_data)
 			count += 13 + dummy_size
 			status = tuple[1]
 			uin = (tuple[0] & 0x00ffffff)#bierzemy UIN, maske odrzucamy
@@ -171,27 +175,37 @@ class GGNotifyReply(GGIncomingPacket):
 			#czy status jest opisowy? Jesli nie, to znaczy, ze dalej zaczyna sie info o kolejnym numerku
 			if status == GGStatuses.AvailDescr or status == GGStatuses.NotAvailDescr or status == GGStatuses.BusyDescr or status == GGStatuses.InvisibleDescr:
 				# zostala jeszcze na pewno dlugosc opisu i opis (moze tez czas)
-				tuple = struct.unpack("<B", connection.read(1))
+                                tmp_data = data[:1]
+                                data = data[1:]
+				tuple = struct.unpack("<B", tmp_data)
 				count += 1
 				desc_size = tuple[0]
 				if desc_size <=4:
-					tuple = struct.unpack("<%ds" % (desc_size,), connection.read(desc_size))
+                                        tmp_data = data[:desc_size]
+                                        data = data[desc_size:]
+					tuple = struct.unpack("<%ds" % (desc_size,), tmp_data)
 					self.__contacts[uin].description = tuple[0]
 					count += desc_size
 				else:
-					tuple = struct.unpack("<%ds" % ((desc_size - 4),), connection.read(desc_size - 4)) 	#bo zaraz sprawdzimy czy ostatnim bajtem w tuple[0] jest 0x00.
+                                        tmp_data = data[:(desc_size - 4)]
+                                        data = data[(desc_size - 4):]
+					tuple = struct.unpack("<%ds" % ((desc_size - 4),), tmp_data) 	#bo zaraz sprawdzimy czy ostatnim bajtem w tuple[0] jest 0x00.
 					count += desc_size - 4
 																									#jesli tak, to znaczy, ze na koncu jest czas. Jesli nie, to znaczy, ze
 																									#dalsze 4 bajty, to dalsza czesc opisu
 					description = tuple[0]	
 					if ord(description[len(description)-1]) == 0x00: # 4 kolejne bajty, to czas
 						description.replace(chr(0x00), '') #usuwamy 0x00
-						tuple = struct.unpack("<I", connection.read(4))
+                                                tmp_data = data[:4]
+                                                data = data[4:]
+						tuple = struct.unpack("<I", tmp_data)
 						count += 4
 						self.__contacts[uin].description = description
 						self.__contacts[uin].return_time = tuple[0]
 					else: #4 kolejne bajty, to koncowka opisu
-						tuple = struct.unpack("4s", connection.read(4))
+                                                tmp_data = data[:4]
+                                                data = data[4:]
+						tuple = struct.unpack("4s", tmp_data)
 						count += 4
 						description += tuple[0]
 						self.__contacts[uin].description = description
@@ -234,8 +248,8 @@ class GGDisconnecting(GGIncomingPacket):
 	def __init__(self):
 		pass
 		
-	def read(self, connection, size):
-		connection.read(size)
+	def read(self, data, size):
+		data = data[8:]
 		
 class GGUserListReply(GGIncomingPacket):
 	"""

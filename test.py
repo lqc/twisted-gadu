@@ -1,15 +1,21 @@
 from twistedgadu import *
 
 class GaduTest(object):
-
-    """Methods that should be overwritten by user"""
-    def on_auth_got_seed(self, seed):
+    def on_auth_got_seed(self, conn, seed):
         print 'mamy seed: ', seed
-        print 'hurej!'
+        conn.login(seed)
 
-    def on_authorised(self, null):
+    def on_login_ok(self, conn):
         print 'zalogowano!'
-        print 'good!'
+
+    def on_login_failed(self, conn):
+        print 'logowanie nie powiodlo sie!'
+
+    def on_need_email(self, conn):
+        print 'musisz uzupelnic email!'
+
+    def on_disconnecting(self, conn):
+        print 'rozlaczanie!'
         
 def main():
     t = GaduTest()

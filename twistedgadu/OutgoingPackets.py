@@ -123,8 +123,7 @@ class GGNewStatus(GGOutgoingPacket):
 		self.description = description
 		self.time = time
 
-	def send(self, connection):
-		assert type(connection) == Connection
+	def get(self):
 		if self.status == GGStatuses.Avail or self.status == GGStatuses.NotAvail or self.status == GGStatuses.Busy or self.status == GGStatuses.Invisible or self.status == GGStatuses.Blocked:
 			data = struct.pack("<I", self.status)
 		else: # status z opisem
@@ -132,7 +131,7 @@ class GGNewStatus(GGOutgoingPacket):
 				data = struct.pack("<I%ds" % (len(self.description),), self.status, self.description) 
 			else:
 				data = struct.pack("<I%dsBI" % (len(self.description), ), self.status, self.description, 0x00, self.time)
-		connection.send(repr(GGHeader(GGOutgoingPackets.GGNewStatus, len(data))) + data)
+		return (repr(GGHeader(GGOutgoingPackets.GGNewStatus, len(data))) + data)
 		
 class GGSendMsg(GGOutgoingPacket):
 	"""
