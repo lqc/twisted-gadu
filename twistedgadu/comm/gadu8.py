@@ -12,6 +12,20 @@ import twistedgadu.comm.gadu_base as gadu
 import hashlib
 import struct
 
+# structures
+class GGStruct_Status80(CStruct):
+    uin             = IntField(0)
+    status          = IntField(1)
+    flags           = IntField(2)
+    remote_ip       = IntField(3)
+    remote_port     = ShortField(4)
+    image_size      = ByteField(5)
+    reserved01      = ByteField(6)
+    reserved02      = IntField(7)
+    description     = VarcharField(8)
+
+# messages
+
 class GGMsg_Login80(gadu.GGMsg):
     uin             = IntField(0, True, None)
     language        = StringField(1, 2, 'pl')
@@ -92,19 +106,8 @@ class GGMsg_NewStatus80(gadu.GGMsg):
     flags           = IntField(1)
     description     = VarcharField(2)
 
-class GGMsg_StatusBase80(gadu.GGMsg):
-    uin             = IntField(0)
-    status          = IntField(1)
-    flags           = IntField(2)
-    remote_ip       = IntField(3)
-    remote_port     = ShortField(4)
-    image_size      = ByteField(5)
-    reserved01      = ByteField(6)
-    reserved02      = IntField(7)
-    description     = VarcharField(8)
+class GGMsg_NotifyReply80(gadu.GGMsg):
+    contacts        = StructArray(0, GGStruct_Status80)
 
-class GGMsg_NotifyReply80(GGMsg_StatusBase80):
-    pass
-
-class GGMsg_Status80(GGMsg_StatusBase80):
-    pass
+class GGMsg_Status80(gadu.GGMsg):
+    contact         = StructInline(0, GGStruct_Status80)    

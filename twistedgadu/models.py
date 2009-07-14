@@ -25,7 +25,11 @@ class UserProfile(object):
     def put_contact(self, contact):
         self.contacts[contact.uin] = contact
 
-
+    def update_contact(self, uin, **kwargs):
+        contact = self.contacts[uin]
+        for (k,v) in kwargs.iteritems():
+            contact[k] = v
+            
 class Contact(object):
     """
     Klasa reprezentujaca pojedynczy kontakt. Zawiera nastepujace pola (wszystkie publiczne):
@@ -72,6 +76,7 @@ class Contact(object):
     image_size = 0
     description = ""
     return_time = 0
+    type = 0x03
     # user_type = GGUserTypes.Normal
 
     RQ_STRING_FORMAT = (\
@@ -109,6 +114,12 @@ class Contact(object):
         self.message_source = kwargs.get('message_source', '')
         self.hidden = kwargs.get('hidden', 0)
         self.telephone = kwargs.get('telephone', '')
+
+    def __getitem__(self, key):
+        return self.__dict__[key]
+
+    def __setitem__(self, key, value):
+        self.__dict__[key] = value
 
     @classmethod
     def from_request_string(cls, rqs):

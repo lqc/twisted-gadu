@@ -20,7 +20,6 @@ class GGMsg(CStruct):
         hdr = GGPacketHeader(msg_type=type, msg_length=len(data))
         return hdr.pack() + data
 
-
     def __str__(self):
         return self.__class__.__name__
 #
@@ -49,26 +48,31 @@ class GGMsg_Disconnecting(GGMsg):
 class GGMsg_DisconnectAck(GGMsg):
     pass
 
-class GGMsg_NotifyBase(GGMsg):
+
+class GGStruct_Notify(CStruct):
     TYPE = Enum({
         'BUDDY':    0x01,
         'FRIEND':   0x02,
         'BLOCKED':  0x04
     })
+    
     uin             = IntField(0)
-    type            = ByteField(1)
+    type            = ByteField(1, True, 0x03)
 
-class GGMsg_NotifyFirst(GGMsg_NotifyBase):
-    pass
+    def __str__(self):
+        return "%d[%d]" (self.uin, self.type)
 
-class GGMsg_NotifyLast(GGMsg_NotifyBase):
-    pass
+class GGMsg_NotifyFirst(GGMsg):
+    contacts        = StructArray(0, GGStruct_Notify)
 
-class GGMsg_AddNotify(GGMsg_NotifyBase):
-    pass
+class GGMsg_NotifyLast(GGMsg):
+    contacts        = StructArray(0, GGStruct_Notify)
 
-class GGMsg_RemoveNotify(GGMsg_NotifyBase):
-    pass
+class GGMsg_AddNotify(GGMsg):
+    contanct        = StructInline(0, GGStruct_Notify)
+
+class GGMsg_RemoveNotify(GGMsg):
+    contanct        = StructInline(0, GGStruct_Notify)
 
 class GGMsg_Pong(GGMsg):
     pass

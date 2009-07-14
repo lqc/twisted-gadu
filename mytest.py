@@ -3,7 +3,7 @@ __author__="lreqc"
 __date__ ="$2009-07-14 01:54:14$"
 
 from twistedgadu.protocol import GaduClient
-from twistedgadu.models import UserProfile
+from twistedgadu.models import UserProfile, Contact
 from twisted.internet import reactor, protocol
 from twisted.python import log
 import sys
@@ -35,9 +35,9 @@ if __name__ == '__main__':
     # initialize logging
     log.startLogging(sys.stdout)
 
-    user = UserProfile(1849224, 'guantanamo')
-    user.put_contact(Contact(uin = 3993939, shown_name = 'Tralala'))
-    user.put_contact(Contact(uin = 4668758, shown_name = 'Anna'))
+    user = UserProfile(4634020, 'xxxxxx')
+    user.put_contact(Contact(uin = 202, shown_name = 'Blip'))
+    user.put_contact(Contact(uin = 1849224, shown_name = 'Lukasz'))
 
     # create factory protocol and application
     factory = GaduClientFactory(user)
