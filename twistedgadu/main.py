@@ -23,20 +23,14 @@ gg_uin = 4634020
 gg_passwd = 'xxxxxx'
 gg_status = GGStatuses.Avail
 gg_desc = 'test'
-contacts_list = ContactsList([Contact({'uin':3993939,'shown_name':'Tralala'}), Contact({'uin':4668758,'shown_name':'Anna'}), Contact({'uin':5120225,'shown_name':'kkszysiu'})])
 #contacts_list = ContactsList()
 
 class GGClient(Protocol):
     def __init__(self):
-        self.__uin = gg_uin
-        print 'self.uin: ', self.__uin
-        print 'gg_uin: ', gg_uin
-        self.password = gg_passwd
-        self.status = gg_status
-        self.desc = gg_desc
-
-        self.__contacts_list = contacts_list
-
+        self.uin = None
+        self.password = None
+        self.status = None
+        self.desc = None
         self._header = True
         self.__local_ip = "127.0.0.1"
         self.__local_port = 1550
@@ -46,7 +40,6 @@ class GGClient(Protocol):
         self.seed = None
 
     def sendPacket(self, msg):
-        print 'PacketSending'
         header = GGHeader()
 	header.read(msg)
         print 'OUT header.type: ', header.type
@@ -55,8 +48,8 @@ class GGClient(Protocol):
 
     def connectionMade(self):
         Protocol.connectionMade(self)
-	print 'connected'
         self._conn = self.factory._conn
+        self.__contacts_list = self.factory._conn.contacts_list
         #self.sendPacket("Hello, world!")
         #self.sendPacket("What a fine day it is.")
         #self.sendPacket(self.end)
@@ -116,12 +109,6 @@ class GGClient(Protocol):
         else:
             print 'packet: unknown: type %s, length %s' % (header.type, header.length)
 
-    def login(self, seed):
-        print '_login'
-	out_packet = GGLogin(self.__uin, self.password, self.status, seed, self.desc, self.__local_ip, \
-                            self.__local_port, self.__external_ip, self.__external_port, self.__image_size)
-        self.sendPacket(out_packet.get())
-
     def _send_contacts_list(self):
         """
         Wysyla do serwera nasza liste kontaktow w celu otrzymania statusow.
@@ -158,6 +145,15 @@ class GGClient(Protocol):
         reactor.callLater(96, self._ping)
         
     """Methods that can be used by user"""
+    def login(self, seed, uin, password, status, desc):
+        self.uin = uin
+        self.password = password
+        self.status = status
+        self.desc = desc
+	out_packet = GGLogin(self.uin, self.password, self.status, seed, self.desc, self.__local_ip, \
+                            self.__local_port, self.__external_ip, self.__external_port, self.__image_size)
+        self.sendPacket(out_packet.get())
+
     def change_status(self, status, description = ""):
             """
             Metoda powoduje zmiane statusu i opisu. Jako parametry przyjmuje nowy status i nowy opis (domyslnie - opis pusty).
