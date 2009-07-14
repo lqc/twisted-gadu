@@ -21,7 +21,7 @@ gg_desc = 'test'
 contacts_list = ContactsList([\
     Contact(uin= 3993939, shown_name= 'Tralala'), \
     Contact(uin= 4668758, shown_name= 'Anna') ])
-    
+
 #contacts_list = ContactsList()
 
 class GGClient(Protocol):
@@ -48,7 +48,7 @@ class GGClient(Protocol):
             gadu.GGMsg_LoginOk: loginok_callback
         }
 
-    def sendPacket(self, msg):        
+    def sendPacket(self, msg):
         self.transport.write( msg )
 
     def connectionMade(self):
@@ -137,7 +137,7 @@ class GGClient(Protocol):
         self.sendPacket(out_packet.get())
         print "[PING]"
         reactor.callLater(10, self._ping)
-        
+
     """Methods that should be overwritten by user"""
 
     def on_authorised(self, null):

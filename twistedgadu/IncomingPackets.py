@@ -1,5 +1,5 @@
-#(C) Marek Chrusciel, 
-#    Jakub Kosinski, 
+#(C) Marek Chrusciel,
+#    Jakub Kosinski,
 #    Marcin Krupowicz,
 #    Mateusz Strycharski
 #
@@ -43,7 +43,7 @@ class GGWelcome(GGIncomingPacket):
     """
     def __init__(self):
         self.seed = None
-    
+
     def read(self, data, size):
         self.seed = struct.unpack("<I", data[8:])[0]
         return self.seed
@@ -55,10 +55,10 @@ class GGLoginOK(GGIncomingPacket):
     """
     def __init__(self):
         pass
-    
+
     def get(self, data, size):
         return struct.unpack("<I", data[8:])[0]
-        
+
 class GGRecvMsg(GGIncomingPacket):
     """
     Pakiet przychodzacej wiadomosci. Jego struktura jest nastepujaca:
@@ -70,7 +70,7 @@ class GGRecvMsg(GGIncomingPacket):
     """
     def __init__(self):
         pass
-    
+
     def read(self, connection, size):
         structure = struct.unpack("<IIII%ds" % (size - 16), connection.read(size))
         self.sender = structure[0]
@@ -90,7 +90,7 @@ class GGSendMsgAck(GGIncomingPacket):
     """
     def __init__(self):
         pass
-    
+
     def read(self, connection, size):
         structure = struct.unpack("<III", connection.read(size))
         self.status = structure[0]
@@ -114,7 +114,7 @@ class GGNotifyReplyOld(GGIncomingPacket):
     def __init__(self, contacts):
         assert type(contacts) == ContactsList
         self.__contacts = contacts
-    
+
     def read(self, connection, size):
         raise NotImplemented
 
@@ -145,13 +145,13 @@ class GGNotifyReply(GGIncomingPacket):
             self.__contacts = ContactsList()
         else:
             self.__contacts = contacts
-    
+
     def read(self, connection, size):
         dummy_size = (self.notify_reply_version == GGIncomingPackets.GGNotifyReply60 and 1 or 4)
-        
+
         count = 0 #ile juz odebralismy bajtow
         finish = False #czy juz konczymy odbieranie
-        
+
         while not finish:
             tuple = struct.unpack("<IBIHBB%dx" % (dummy_size,), connection.read(13 + dummy_size))
             count += 13 + dummy_size
@@ -165,7 +165,7 @@ class GGNotifyReply(GGIncomingPacket):
             self.__contacts[uin].port = tuple[3]
             self.__contacts[uin].version = tuple[4]
             self.__contacts[uin].image_size = tuple[5]
-            
+
             #czy status jest opisowy? Jesli nie, to znaczy, ze dalej zaczyna sie info o kolejnym numerku
             if status == GGStatuses.AvailDescr or status == GGStatuses.NotAvailDescr or status == GGStatuses.BusyDescr or status == GGStatuses.InvisibleDescr:
                 # zostala jeszcze na pewno dlugosc opisu i opis (moze tez czas)
@@ -181,7 +181,7 @@ class GGNotifyReply(GGIncomingPacket):
                     count += desc_size - 4
                                                                                                     #jesli tak, to znaczy, ze na koncu jest czas. Jesli nie, to znaczy, ze
                                                                                                     #dalsze 4 bajty, to dalsza czesc opisu
-                    description = tuple[0]  
+                    description = tuple[0]
                     if ord(description[len(description)-1]) == 0x00: # 4 kolejne bajty, to czas
                         description.replace(chr(0x00), '') #usuwamy 0x00
                         tuple = struct.unpack("<I", connection.read(4))
@@ -194,15 +194,15 @@ class GGNotifyReply(GGIncomingPacket):
                         description += tuple[0]
                         self.__contacts[uin].description = description
                         self.__contacts[uin].return_time = 0
-            
+
             if count >= size:
                 finish = True
 
     def __get_contacts(self):
         return self.__contacts
-    
+
     contacts = property(__get_contacts)
-                
+
 class GGPubDir50Reply(GGIncomingPacket):
     """
     Odpowiedz serwera na pakiet GGPubDir50Request o nastepujacej strukturze:
@@ -216,13 +216,13 @@ class GGPubDir50Reply(GGIncomingPacket):
     """
     def __init__(self):
         pass
-    
+
     def read(self, connection, size):
         structure = struct.unpack("<BI%ds" % (size - 5), connection.read(size))
         self.reqtype = structure[0]
         self.seq = structure[1]
         self.reply = structure[2]
-        
+
 class GGDisconnecting(GGIncomingPacket):
     """
     Pusty pakiet, ktory serwer wysyla, gdy chce nas rozlaczyc. Ma to miejsce,
@@ -231,10 +231,10 @@ class GGDisconnecting(GGIncomingPacket):
     """
     def __init__(self):
         pass
-        
+
     def read(self, connection, size):
         connection.read(size)
-        
+
 class GGUserListReply(GGIncomingPacket):
     """
     Odpowiedz serwera na pakiet GGUserListRequest
@@ -242,7 +242,7 @@ class GGUserListReply(GGIncomingPacket):
     """
     def __init__(self):
         pass
-    
+
     def read(self, connection, size):
         if size == 1:
             self.reqtype = struct.unpack("<B", connection.read(size))[0]
@@ -251,7 +251,7 @@ class GGUserListReply(GGIncomingPacket):
             structure = struct.unpack("<B%ds" % (size - 1), connection.read(size))
             self.reqtype = structure[0]
             self.request = structure[1]
-    
+
 class GGStatus(GGIncomingPacket):
     """
     Pakiet informujacy o zmianie statusu uzytkownika na liscie kontaktow
