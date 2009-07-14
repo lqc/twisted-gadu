@@ -9,13 +9,7 @@ from twisted.python import log
 import sys
 import struct
 
-from IncomingPackets import *
-from OutgoingPackets import *
-from HeaderPacket import GGHeader
-from Helpers import *
-from GGConstans import *
-from Exceptions import *
-from Contacts import *
+from twistedgadu.comm.packets import *
 
 log.startLogging(sys.stdout)
 
@@ -23,7 +17,11 @@ gg_uin = 4634020
 gg_passwd = 'xxxxxx'
 gg_status = GGStatuses.Avail
 gg_desc = 'test'
-contacts_list = ContactsList([Contact({'uin':3993939,'shown_name':'Tralala'}), Contact({'uin':4668758,'shown_name':'Anna'})])
+
+contacts_list = ContactsList([\
+    Contact(uin= 3993939, shown_name= 'Tralala'), \
+    Contact(uin= 4668758, shown_name= 'Anna') ])
+    
 #contacts_list = ContactsList()
 
 class GGClient(Protocol):
@@ -45,57 +43,65 @@ class GGClient(Protocol):
         self.__image_size = 255
         self.seed = None
 
-    def sendPacket(self, msg):
-        print 'PacketSending'
-        header = GGHeader()
-	header.read(msg)
-        print 'OUT header.type: ', header.type
+        self.__dispatcher = {
+            gadu.GGMsg_Welcome: welcome_callback,
+            gadu.GGMsg_LoginOk: loginok_callback
+        }
 
-        self.transport.write(msg)
+    def sendPacket(self, msg):        
+        self.transport.write( msg )
 
     def connectionMade(self):
         Protocol.connectionMade(self)
-	print 'connected'
+        print 'connected'
         self._conn = self.factory._conn
+
         #self.sendPacket("Hello, world!")
         #self.sendPacket("What a fine day it is.")
         #self.sendPacket(self.end)
 
     def dataReceived(self, data):
         print 'received data: ', data
-        header = GGHeader()
-	header.read(data)
-        print 'header.type: ', header.type
-#        self.factory.clientReady(self)
-	if header.type == GGIncomingPackets.GGWelcome:
-            print 'packet: GGWelcome'
-            in_packet = GGWelcome()
-            in_packet.read(data, header.length)
-            self.seed = in_packet.seed
-            d = defer.Deferred()
-            d.callback(self.seed)
-            d.addCallback(self._conn.on_auth_got_seed)
-            d = None
-            self._login(self.seed)
-        if header.type == GGIncomingPackets.GGLoginOK:
-            print 'packet: GGLoginOK'
-            d = defer.Deferred()
-            d.callback(None)
-            d.addCallback(self._conn.on_authorised)
-            self._send_contacts_list()
-            print 'wyslano liste kontaktow'
-            self._ping()
-        if header.type == GGIncomingPackets.GGUserListReply:
-            print 'packet: GGUserListReply'
-            d = defer.Deferred()
-            d.callback(None)
-            d.addCallback(self.on_userlistreply)
+
+        header, rem = GGPacketHeader.unpack(data)
+        msg_class = GG_Inbound[header.msg_type]
+
+        # unpack the message
+        msg, rem = msg_class.unpack(rem)
+        try:
+            self.__dispatcher[msg_class](header, msg, rem)
+        except Exception, e:
+            print e
+
+    def welcome_callback(self, hdr, msg, extra):
+        self.seed = msg.seed
+
+        # this does something ?
+        d = defer.Deferred()
+        d.callback(self.seed)
+        d.addCallback(self._conn.on_auth_got_seed)
+
+        self._login()
+
+    def loginok_callback(self, hdr, msg, extra):
+        d = defer.Deferred()
+        d.callback(None)
+        d.addCallback(self._conn.on_authorised)
+        self._send_contacts_list()
+        self._ping()
+
+    def userlist_callback(self, hdr, msg, extra):
+        print 'packet: GGUserListReply'
+        d = defer.Deferred()
+        d.callback(None)
+        d.addCallback(self.on_userlistreply)
 
     def _login(self, seed):
         print '_login'
-	out_packet = GGLogin(self.__uin, self.password, self.status, seed, self.desc, self.__local_ip, \
-                            self.__local_port, self.__external_ip, self.__external_port, self.__image_size)
-        self.sendPacket(out_packet.get())
+        login_msg = GGMsg80_Login(uin=self.__uin)
+        login_msg.update_hash(self.password, self.status)
+
+        self.sendPacket( login_msg.as_packet(GG_Outbound.key_for(GGMsg80_Login)) )
 
     def _send_contacts_list(self):
         """
@@ -133,7 +139,6 @@ class GGClient(Protocol):
         reactor.callLater(10, self._ping)
         
     """Methods that should be overwritten by user"""
-
 
     def on_authorised(self, null):
         print 'zalogowano!'

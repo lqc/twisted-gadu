@@ -7,7 +7,7 @@
 
 class GGException(Exception):
 	"""
-	Wyjatej "typu" gadu-gadu.
+	Wyj "typu" gadu-gadu.
 	"""
 	pass
 
