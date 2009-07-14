@@ -6,7 +6,7 @@
 # $Id: IncomingPackets.py 94 2008-01-17 00:23:38Z cinu $
 
 import struct
-#from Contacts import *
+from Contacts import *
 from Helpers import Enum
 
 GGIncomingPackets = Enum({
@@ -123,6 +123,7 @@ class GGNotifyReplyOld(GGIncomingPacket):
         return self.__contacts
 
 class GGNotifyReply(GGIncomingPacket):
+<<<<<<< HEAD:twistedgadu/IncomingPackets.py
     """
     Odpowiedz serwera na pakiety GGNotifyFirst i GGNotifyLast.
     Zawiera liste struktur postaci:
@@ -197,6 +198,96 @@ class GGNotifyReply(GGIncomingPacket):
             
             if count >= size:
                 finish = True
+=======
+	"""
+	Odpowiedz serwera na pakiety GGNotifyFirst i GGNotifyLast.
+	Zawiera liste struktur postaci:
+		int uin -- numer
+		char status -- status danej osoby
+		int ip -- adres ip osoby
+		short port -- port, na ktorym slucha klient
+		int version -- wersja klienta
+		string description -- opis, nie musi wystapic
+		int return_time -- czas, nie musi wystapic
+	"""
+	def __init__(self, contacts, notify_reply_version = GGIncomingPackets.GGNotifyReply60):
+		"""
+		Domyslnie odbieramy pakiet starszy - GGNotifyReply60
+		"""
+		assert type(contacts) == ContactsList
+		assert notify_reply_version == GGIncomingPackets.GGNotifyReply60 or notify_reply_version == GGIncomingPackets.GGNotifyReply77
+		self.notify_reply_version = notify_reply_version
+		if contacts == None:
+			self.__contacts = ContactsList()
+		else:
+			self.__contacts = contacts
+	
+	def read(self, data, size):
+            if size != 0:
+                data = data[8:]
+		dummy_size = (self.notify_reply_version == GGIncomingPackets.GGNotifyReply60 and 1 or 4)
+		
+		count = 0 #ile juz odebralismy bajtow
+		finish = False #czy juz konczymy odbieranie
+		
+		while not finish:
+                        tmp_data = data[:(13 + dummy_size)]
+                        data = data[(13 + dummy_size):]
+			tuple = struct.unpack("<IBIHBB%dx" % (dummy_size,), tmp_data)
+			count += 13 + dummy_size
+			status = tuple[1]
+			uin = (tuple[0] & 0x00ffffff)#bierzemy UIN, maske odrzucamy
+			if self.__contacts[uin] == None:
+				self.__contacts.add_contact(Contact({'uin':uin}))
+			self.__contacts[uin].uin = uin
+			self.__contacts[uin].status = tuple[1]
+			self.__contacts[uin].ip = tuple[2]
+			self.__contacts[uin].port = tuple[3]
+			self.__contacts[uin].version = tuple[4]
+			self.__contacts[uin].image_size = tuple[5]
+			
+			#czy status jest opisowy? Jesli nie, to znaczy, ze dalej zaczyna sie info o kolejnym numerku
+			if status == GGStatuses.AvailDescr or status == GGStatuses.NotAvailDescr or status == GGStatuses.BusyDescr or status == GGStatuses.InvisibleDescr:
+				# zostala jeszcze na pewno dlugosc opisu i opis (moze tez czas)
+                                tmp_data = data[:1]
+                                data = data[1:]
+				tuple = struct.unpack("<B", tmp_data)
+				count += 1
+				desc_size = tuple[0]
+				if desc_size <=4:
+                                        tmp_data = data[:desc_size]
+                                        data = data[desc_size:]
+					tuple = struct.unpack("<%ds" % (desc_size,), tmp_data)
+					self.__contacts[uin].description = tuple[0]
+					count += desc_size
+				else:
+                                        tmp_data = data[:(desc_size - 4)]
+                                        data = data[(desc_size - 4):]
+					tuple = struct.unpack("<%ds" % ((desc_size - 4),), tmp_data) 	#bo zaraz sprawdzimy czy ostatnim bajtem w tuple[0] jest 0x00.
+					count += desc_size - 4
+																									#jesli tak, to znaczy, ze na koncu jest czas. Jesli nie, to znaczy, ze
+																									#dalsze 4 bajty, to dalsza czesc opisu
+					description = tuple[0]	
+					if ord(description[len(description)-1]) == 0x00: # 4 kolejne bajty, to czas
+						description.replace(chr(0x00), '') #usuwamy 0x00
+                                                tmp_data = data[:4]
+                                                data = data[4:]
+						tuple = struct.unpack("<I", tmp_data)
+						count += 4
+						self.__contacts[uin].description = description
+						self.__contacts[uin].return_time = tuple[0]
+					else: #4 kolejne bajty, to koncowka opisu
+                                                tmp_data = data[:4]
+                                                data = data[4:]
+						tuple = struct.unpack("4s", tmp_data)
+						count += 4
+						description += tuple[0]
+						self.__contacts[uin].description = description
+						self.__contacts[uin].return_time = 0
+			
+			if count >= size:
+				finish = True
+>>>>>>> 75875c1535a970adf1db5a6d9a2fb2b741a9d84f:twistedgadu/IncomingPackets.py
 
     def __get_contacts(self):
         return self.__contacts
@@ -224,6 +315,7 @@ class GGPubDir50Reply(GGIncomingPacket):
         self.reply = structure[2]
         
 class GGDisconnecting(GGIncomingPacket):
+<<<<<<< HEAD:twistedgadu/IncomingPackets.py
     """
     Pusty pakiet, ktory serwer wysyla, gdy chce nas rozlaczyc. Ma to miejsce,
     gdy probowano polaczyc sie z nieprawidlowym haslem lub gdy rownoczesnie
@@ -235,6 +327,19 @@ class GGDisconnecting(GGIncomingPacket):
     def read(self, connection, size):
         connection.read(size)
         
+=======
+	"""
+	Pusty pakiet, ktory serwer wysyla, gdy chce nas rozlaczyc. Ma to miejsce,
+	gdy probowano polaczyc sie z nieprawidlowym haslem lub gdy rownoczesnie
+	polaczy sie drugi klient z tym samym numerem
+	"""
+	def __init__(self):
+		pass
+		
+	def read(self, data, size):
+		data = data[8:]
+		
+>>>>>>> 75875c1535a970adf1db5a6d9a2fb2b741a9d84f:twistedgadu/IncomingPackets.py
 class GGUserListReply(GGIncomingPacket):
     """
     Odpowiedz serwera na pakiet GGUserListRequest

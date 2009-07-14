@@ -26,15 +26,10 @@ contacts_list = ContactsList([\
 
 class GGClient(Protocol):
     def __init__(self):
-        self.__uin = gg_uin
-        print 'self.uin: ', self.__uin
-        print 'gg_uin: ', gg_uin
-        self.password = gg_passwd
-        self.status = gg_status
-        self.desc = gg_desc
-
-        self.__contacts_list = contacts_list
-
+        self.uin = None
+        self.password = None
+        self.status = None
+        self.desc = None
         self._header = True
         self.__local_ip = "127.0.0.1"
         self.__local_port = 1550
@@ -53,16 +48,14 @@ class GGClient(Protocol):
 
     def connectionMade(self):
         Protocol.connectionMade(self)
-        print 'connected'
         self._conn = self.factory._conn
-
+        self.__contacts_list = self.factory._conn.contacts_list
         #self.sendPacket("Hello, world!")
         #self.sendPacket("What a fine day it is.")
         #self.sendPacket(self.end)
 
     def dataReceived(self, data):
         print 'received data: ', data
-
         header, rem = GGPacketHeader.unpack(data)
         msg_class = GG_Inbound[header.msg_type]
 
@@ -103,6 +96,60 @@ class GGClient(Protocol):
 
         self.sendPacket( login_msg.as_packet(GG_Outbound.key_for(GGMsg80_Login)) )
 
+    x = """        header = GGHeader()
+	header.read(data)
+        print 'header.type: ', header.type
+#        self.factory.clientReady(self)
+	if header.type == GGIncomingPackets.GGWelcome:
+            print 'packet: GGWelcome'
+            in_packet = GGWelcome()
+            in_packet.read(data, header.length)
+            self.seed = in_packet.seed
+            d = defer.Deferred()
+            d.callback(self)
+            d.addCallback(self._conn.on_auth_got_seed, self.seed)
+            d = None
+        elif header.type == GGIncomingPackets.GGLoginOK:
+            print 'packet: GGLoginOK'
+            d = defer.Deferred()
+            d.callback(self)
+            d.addCallback(self._conn.on_login_ok)
+            self._send_contacts_list()
+            print 'wyslano liste kontaktow'
+            self._ping()
+        elif header.type == GGIncomingPackets.GGLoginFailed:
+            print 'packet: GGLoginFailed'
+            d = defer.Deferred()
+            d.callback(self)
+            d.addCallback(self._conn.on_login_failed)
+        elif header.type == GGIncomingPackets.GGNeedEMail:
+            print 'packet: GGNeedEMail'
+            d = defer.Deferred()
+            d.callback(self)
+            d.addCallback(self._conn.on_need_email)
+        elif header.type == GGIncomingPackets.GGDisconnecting:
+            print 'packet: GGDisconnecting'
+            in_packet = GGDisconnecting()
+            in_packet.read(data, header.length)
+            d = defer.Deferred()
+            d.callback(self)
+            d.addCallback(self._conn.on_disconnecting)
+        elif header.type == GGIncomingPackets.GGNotifyReply60 or header.type == GGIncomingPackets.GGNotifyReply77:
+            in_packet = GGNotifyReply(self.__contacts_list, header.type)
+            in_packet.read(data, header.length)
+            self.__contacts_list = in_packet.contacts
+            d = defer.Deferred()
+            d.callback(self)
+            d.addCallback(self._conn.on_notify_reply, self.__contacts_list)
+        elif header.type == GGIncomingPackets.GGUserListReply:
+            print 'packet: GGUserListReply'
+            d = defer.Deferred()
+            d.callback(None)
+            d.addCallback(self.on_userlist_reply)
+        else:
+            print 'packet: unknown: type %s, length %s' % (header.type, header.length)
+"""
+
     def _send_contacts_list(self):
         """
         Wysyla do serwera nasza liste kontaktow w celu otrzymania statusow.
@@ -136,15 +183,36 @@ class GGClient(Protocol):
         out_packet = GGPing()
         self.sendPacket(out_packet.get())
         print "[PING]"
-        reactor.callLater(10, self._ping)
+        reactor.callLater(96, self._ping)
         
-    """Methods that should be overwritten by user"""
+    """Methods that can be used by user"""
+    def login(self, seed, uin, password, status, desc):
+        self.uin = uin
+        self.password = password
+        self.status = status
+        self.desc = desc
+    	out_packet = GGLogin(self.uin, self.password, self.status, seed, self.desc, self.__local_ip, \
+                            self.__local_port, self.__external_ip, self.__external_port, self.__image_size)
+        self.sendPacket(out_packet.get())
 
-    def on_authorised(self, null):
-        print 'zalogowano!'
+    def change_status(self, status, description = ""):
+            """
+            Metoda powoduje zmiane statusu i opisu. Jako parametry przyjmuje nowy status i nowy opis (domyslnie - opis pusty).
+            """
+            assert type(status) == types.IntType and status in GGStatuses
+            assert type(description) == types.StringType and len(description) <= 70
 
-    def on_userlistreply(self, null):
-        print 'odebrano liste kontaktow!'
+            out_packet  = GGNewStatus(status, description)
+            self.sendPacket(out_packet.get())
+            self.status = status
+            self.desc = description
+
+    def get_actual_status(self):
+        return self.status
+
+
+    def get_actual_status_desc(self):
+        return self.desc
 
 class GGClientFactory(ClientFactory):
     protocol = GGClient
