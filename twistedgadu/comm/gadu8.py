@@ -12,7 +12,7 @@ import twistedgadu.comm.gadu_base as gadu
 import hashlib
 import struct
 
-class GGMsg80_Login(gadu.GGMsg):
+class GGMsg_Login80(gadu.GGMsg):
     uin             = IntField(0, True, None)
     language        = StringField(1, 2, 'pl')
     hash_type       = ByteField(2, True, 0x02)
@@ -36,7 +36,7 @@ class GGMsg80_Login(gadu.GGMsg):
         hash.update(struct.pack('<i', seed))
         self.login_hash = hash.digest()
 
-class GGMsg80_RecvMsg(gadu.GGMsg):
+class GGMsg_RecvMsg80(gadu.GGMsg):
     sender              = IntField(0)
     seq                 = IntField(1)
     time                = IntField(2)
@@ -46,11 +46,11 @@ class GGMsg80_RecvMsg(gadu.GGMsg):
     html_message        = NullStringField(6)
     plain_message       = NullStringField(7)
 
-class GGMsg80_LoginOk(gadu.GGMsg):
+class GGMsg_LoginOk80(gadu.GGMsg):
     reserved       = IntField(0, True)
 
 # wiadomoœci wyjœciowe
-class GGMsg80_SendMsg(gadu.GGMsg):
+class GGMsg_SendMsg80(gadu.GGMsg):
     CLASS = Enum({
         'QUEUED':   0x0001,
         'MESSAGE':  0x0004,
@@ -67,7 +67,7 @@ class GGMsg80_SendMsg(gadu.GGMsg):
     html_message        = NullStringField(5)
     plain_message       = NullStringField(6)    
 
-class GGMsg80_NewStatus(gadu.GGMsg):
+class GGMsg_NewStatus80(gadu.GGMsg):
     STATUS = Enum({
         'NOT_AVAILBLE':         0x0001,
         'NOT_AVAILBLE_DESC':    0x0015,
@@ -92,7 +92,7 @@ class GGMsg80_NewStatus(gadu.GGMsg):
     flags           = IntField(1)
     description     = VarcharField(2)
 
-class GGMsg80_UserInfo(gadu.GGMsg):
+class GGMsg_StatusBase80(gadu.GGMsg):
     uin             = IntField(0)
     status          = IntField(1)
     flags           = IntField(2)
@@ -102,3 +102,9 @@ class GGMsg80_UserInfo(gadu.GGMsg):
     reserved01      = ByteField(6)
     reserved02      = IntField(7)
     description     = VarcharField(8)
+
+class GGMsg_NotifyReply80(GGMsg_StatusBase80):
+    pass
+
+class GGMsg_Status80(GGMsg_StatusBase80):
+    pass

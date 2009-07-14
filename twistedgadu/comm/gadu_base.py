@@ -20,6 +20,9 @@ class GGMsg(CStruct):
         hdr = GGPacketHeader(msg_type=type, msg_length=len(data))
         return hdr.pack() + data
 
+
+    def __str__(self):
+        return self.__class__.__name__
 #
 # Wiadomoœci przychodz¹ce
 #
@@ -46,7 +49,7 @@ class GGMsg_Disconnecting(GGMsg):
 class GGMsg_DisconnectAck(GGMsg):
     pass
 
-class GGMsg_Notify(GGMsg):
+class GGMsg_NotifyBase(GGMsg):
     TYPE = Enum({
         'BUDDY':    0x01,
         'FRIEND':   0x02,
@@ -55,11 +58,29 @@ class GGMsg_Notify(GGMsg):
     uin             = IntField(0)
     type            = ByteField(1)
 
-class GGMsg_NotifyFirst(GGMsg_Notify):
+class GGMsg_NotifyFirst(GGMsg_NotifyBase):
     pass
 
-class GGMsg_NotifyLast(GGMsg_Notify):
+class GGMsg_NotifyLast(GGMsg_NotifyBase):
     pass
 
+class GGMsg_AddNotify(GGMsg_NotifyBase):
+    pass
+
+class GGMsg_RemoveNotify(GGMsg_NotifyBase):
+    pass
+
+class GGMsg_Pong(GGMsg):
+    pass
+
+class GGMsg_ListEmpty(GGMsg):
+    pass
+
+# unused ?
 class GGMsg_NeedEmail(GGMsg):
     pass
+
+class GGMsg_Ping(GGMsg):
+    pass
+
+    
