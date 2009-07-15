@@ -180,7 +180,7 @@ class StructInline(CField):
         return value.pack()
 
     def unpack(self, data):
-        return self.struct_calss.unpack(data)
+        return self.struct_class.unpack(data)
 
     def validate(self, value):
         CField.validate(self, value)

@@ -2,6 +2,7 @@
 __author__="lreqc"
 __date__ ="$2009-07-14 05:51:00$"
 
+from twisted.internet.defer import Deferred
 from twisted.internet.protocol import Protocol
 from twistedgadu.comm.packets import *
 from twistedgadu.comm.gadu_base import GGPacketHeader, GGStruct_Notify
@@ -12,6 +13,8 @@ class GaduClient(Protocol):
     
     def __init__(self, profile):
         self.user_profile = profile # the user connected to this client
+        self.beforeAuth = Deferred()
+        self.loginSuccess = Deferred()
 
     def connectionMade(self):
         self.__buffer = ''        
@@ -55,7 +58,7 @@ class GaduClient(Protocol):
 
         # end of data loop
     
-    def sendPacket(self, msg):
+    def _sendPacket(self, msg):
         # wrap the packet with a transport header
         self.transport.write( msg.as_packet(typeid_for_outclass(msg.__class__)) )
 
@@ -69,22 +72,32 @@ class GaduClient(Protocol):
     def _handleWelcome(self, msg):
         self._log("Welcome seed is: " + str(msg.seed))
 
+        self.beforeAuth.callback( msg.seed )
+
         login_klass = outclass_for_name('Login80')
         login = login_klass(uin=self.user_profile.uin, \
             login_hash=self.user_profile.password_hash(msg.seed) )
-        self.sendPacket(login)
+        self._sendPacket(login)
 
     def _handleLoginOk80(self, msg):
         self._log('Login successful.')
-        self.sendAllContacts()
+        self.loginSuccess.callback(None)
 
     def _handleLoginFailed(self, msg):
         self._log('Failed to login.')
+        self.loginSuccess.errback(None)
 
+    def _handleStatus80(self, msg):       
+        self.user_profile.update_contact(msg.contact.uin, msg.contact)
+        
+        
     def _handleNotifyReply80(self, msg):
         for struct in msg.contacts:
-            self.user_profile.update_contact(struct.uin, \
-                status=struct.status, description=struct.description)       
+            self.user_profile.update_contact(struct.uin, struct)
+        
+
+    def _handleDisconnecting(self, msg):
+         self.loseConnection()
 
     def sendAllContacts(self):
         contacts = self.user_profile.contacts.values()
@@ -94,11 +107,20 @@ class GaduClient(Protocol):
             return
 
         nl_class = outclass_for_name('NotifyLast')
-        packet = nl_class(contacts=[GGStruct_Notify(uin=c.uin) for c in contacts])
-        self._log( repr(packet.pack()) )
+        nf_class = outclass_for_name('NotifyFirst')
 
-        self.sendPacket(packet)
+        while len(contacts) > 400:
+            batch, contacts = constacts[:400], contacts[400:]
+            self._sendPacket( nf_class(contacts= \
+                [GGStruct_Notify(uin=c.uin) for c in batch]) )
+
+        self._sendPacket( nl_class(contacts= \
+                [GGStruct_Notify(uin=c.uin) for c in contacts]) )
         self._log("Sent all contacts.")
+
+    #
+    # High-level interface callbacks
+    #
 
     def _log(self, obj):
         tlog.msg( str(obj) )

@@ -5,11 +5,10 @@ __date__ ="$2009-07-14 07:33:27$"
 import hashlib, struct
 
 class UserProfile(object):
-
-    def __init__(self, uin, password='', contacts={}):
-        self.uin = uin
-        self.password = password
+    def __init__(self, contacts={}):
+        self.__hashelem = None
         self.contacts = contacts
+        self.__connection = None
         
     def __set_password(self, value):
         self.__hashelem = hashlib.new('sha1')
@@ -22,14 +21,63 @@ class UserProfile(object):
         h.update( struct.pack("<i", seed) )
         return h.digest()
 
+    def get_contact(self, uin):
+        return self.contacts[uin]
+
     def put_contact(self, contact):
         self.contacts[contact.uin] = contact
 
-    def update_contact(self, uin, **kwargs):
-        contact = self.contacts[uin]
-        for (k,v) in kwargs.iteritems():
-            contact[k] = v
+    def update_contact(self, uin, struct):
+        self.contacts[uin].update_with_struct(struct)
+
+    # high-level interface
+
+    @property
+    def connected(self):
+        """Is the profile currently used in an active connection"""
+        return self.__connection is not None
+
+    # stuff that user can use
+    def setNotifyState(self, uin, new_state):
+        pass
+
+    def sendTextMessage(self, text):
+        pass
+
+    def setMyState(self, new_state, new_description=''):
+        pass
+
+    def importContacts(self):
+        pass
+
+    def exportContacts(self):
+        pass
+
+
+
+    # stuff that should be implemented by user
+    def onCreditialsNeeded(self):
+        """This should return a 2-tuple containing the UIN and a raw password data"""
+        return None
+
+    def onLoginSuccess(self):
+        """Called when login is completed."""
+        pass
+
+    def onLoginFailure(self):
+        """Called after an unsuccessful login."""
+        pass
+
+    def onContantStatusChange(self, contact):
+        """Called when a status of a contact has changed."""
+        pass
+
+
+
             
+
+
+
 class Contact(object):
     """
     Klasa reprezentujaca pojedynczy kontakt. Zawiera nastepujace pola (wszystkie publiczne):
@@ -98,7 +146,7 @@ class Contact(object):
 
     def __init__(self, **kwargs):
         if not kwargs.has_key('uin'):
-            raise ValueError("Kontakt musi mieæ numer UIN.")
+            raise ValueError("Kontakt musi mieï¿½ numer UIN.")
 
         self.uin = int(kwargs['uin'])
         self.name = kwargs.get('name', '')
@@ -115,11 +163,13 @@ class Contact(object):
         self.hidden = kwargs.get('hidden', 0)
         self.telephone = kwargs.get('telephone', '')
 
-    def __getitem__(self, key):
-        return self.__dict__[key]
+    def update_with_struct(self, struct):
+        self.status = struct.status
+        self.description = struct.description
+        self._trigger_updated()
 
-    def __setitem__(self, key, value):
-        self.__dict__[key] = value
+    def _trigger_updated(self):
+        print "Contact %d updated to: %x %s" % (self.uin, self.status, self.description)
 
     @classmethod
     def from_request_string(cls, rqs):

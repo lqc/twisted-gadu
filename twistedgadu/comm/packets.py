@@ -35,7 +35,7 @@ GG_Inbound, GG_InboundR = reverse_dict({
     0x002e: GGMsg_RecvMsg80,
     #0x0030: gadu8.GGMsg80_UserListReply,
     0x0035: GGMsg_LoginOk80,
-    #0x0036: gadu8.GGMsg80_Status,
+    0x0036: GGMsg_Status80,
     0x0037: GGMsg_NotifyReply80
 })
 
