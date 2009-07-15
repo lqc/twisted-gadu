@@ -57,8 +57,7 @@ class MainApp(object):
             'on_send_button_clicked': self.onMessageSent
         })
         
-        self.mainWindow.show()
-        
+        self.mainWindow.show()        
 
     def onMessageSent(self, widget, data=None):
         self.msgBuf.insert_at_cursor('Hello!\n')
