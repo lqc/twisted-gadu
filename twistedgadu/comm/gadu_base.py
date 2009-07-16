@@ -53,7 +53,7 @@ class GGStruct_Notify(CStruct):
     TYPE = Enum({
         'BUDDY':    0x01,
         'FRIEND':   0x02,
-        'BLOCKED':  0x04
+        'IGNORE':  0x04
     })
     
     uin             = IntField(0)

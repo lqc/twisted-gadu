@@ -1,4 +1,4 @@
-#!/bin/env python
+#!/usr/bin/env python
 
 __author__="lreqc"
 __date__ ="$2009-07-14 01:54:14$"
@@ -9,9 +9,12 @@ from gtk import glade
 from twisted.internet import gtk2reactor
 gtk2reactor.install()
 
+
 from twistedgadu.protocol import GaduClient
+
 from twistedgadu.models import UserProfile, Contact
 from twisted.internet import reactor, protocol
+from twisted.internet.defer import Deferred
 
 from twisted.python import log
 
@@ -39,13 +42,29 @@ class GaduClientFactory(protocol.ClientFactory):
 
 class MainApp(object):
 
-    def __init__(self):
+    def __init__(self, profile):
+        self.profile = profile
+        
+        # connect some callbacks to the model
+        self.profile.onLoginSuccess = self.loginSuccess
+        self.profile.onLoginFailure = self.loginFailed
+
+        self.factory = GaduClientFactory(profile)
+
         self.gladefile = "simple_client.glade"
         self.widgetTree = glade.XML(self.gladefile)
 
-
         self.mainWindow = self.widgetTree.get_widget("MainWindow")
         self.mainWindow.connect("destroy", self.onWindowClose)
+
+        # status bar
+        self.statusBar = self.widgetTree.get_widget("main_statusbar")
+        
+        # extract some widgets
+        self.loginDialog = self.widgetTree.get_widget("LoginDialog")
+        self.loginDialog_uin = self.widgetTree.get_widget("uin_entry")
+        self.loginDialog_pass = self.widgetTree.get_widget("password_entry")
+ 
         self.sendButton = self.widgetTree.get_widget("send_button")
         self.messageEntry = self.widgetTree.get_widget("message_entry")
 
@@ -54,7 +73,10 @@ class MainApp(object):
         tv.set_buffer(self.msgBuf)
 
         self.widgetTree.signal_autoconnect({
-            'on_send_button_clicked': self.onMessageSent
+            'on_send_button_clicked': self.onMessageSent,
+            'on_menu_quit_activate': self.onWindowClose,
+            'on_menu_connect_activate': self.connectUser,
+            'on_LoginDialog_response': self.loginDialogResponse,
         })
         
         self.mainWindow.show()        
@@ -66,19 +88,43 @@ class MainApp(object):
         reactor.stop()
         return True
 
+    def connectUser(self, widget, *args):
+        """This is called when user selects "connect" from the main menu"""
+        self.__status_ctx_id = self.statusBar.get_context_id("Login status")
+        self.statusBar.push(self.__status_ctx_id, "Authenticating...")
+        self.loginDialog.show()
+
+    def loginDialogResponse(self, widget, response_id, *args):
+        self.loginDialog.destroy()
+
+        if response_id == 2:
+            self.profile.uin = int(self.loginDialog_uin.get_text())
+            self.profile.password = self.loginDialog_pass.get_text()
+
+            self.statusBar.pop(self.__status_ctx_id)
+            self.statusBar.push(self.__status_ctx_id, "Connecting...")
+
+            reactor.connectTCP('91.197.13.83', 8074, self.factory)
+        else:
+            return False
+
+    def loginSuccess(self):
+        self.statusBar.pop(self.__status_ctx_id)
+        self.statusBar.push(self.__status_ctx_id, "Login done.")
+
+    def loginFailed(self):
+        self.statusBar.pop(self.__status_ctx_id)
+        self.statusBar.push(self.__status_ctx_id, "Login done.")
+
+
 if __name__ == '__main__':
     # initialize logging
     log.startLogging(sys.stdout)
 
-    user = UserProfile( 1849224, 'guantanamo')
-    user.put_contact(Contact(uin = 202, shown_name = 'Blip'))
-    user.put_contact(Contact(uin = 4634020, shown_name = 'Tester2'))
+    user = UserProfile()
+    user.putContact(Contact.simple_make(user, 202, 'Blip'))
+    user.putContact(Contact.simple_make(user, 4634020, 'Tester2'))
 
-    # create factory protocol and application
-    factory = GaduClientFactory(user)
+    app = MainApp(user)
 
-    # connect factory to this host and port
-    # reactor.connectTCP('91.197.13.83', 8074, factory)
-    # run
-    MainApp()
     reactor.run()

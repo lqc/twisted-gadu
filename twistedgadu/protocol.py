@@ -8,18 +8,26 @@ from twistedgadu.comm.packets import *
 from twistedgadu.comm.gadu_base import GGPacketHeader, GGStruct_Notify
 
 import twisted.python.log as tlog
+import struct
 
 class GaduClient(Protocol):
     
     def __init__(self, profile):
         self.user_profile = profile # the user connected to this client
-        self.beforeAuth = Deferred()
+        self.doLogin = Deferred()
+        self.doLogin.addCallbacks(profile._creditials, self._onInvalidCreditials)
+        self.doLogin.addCallbacks(self._doLogin, self._onLoginFailed)
+        self.doLogin.addErrback(self._onLoginFailed)
+
         self.loginSuccess = Deferred()
+        self.loginSuccess.addCallbacks(self._sendAllContacts, self._onLoginFailed)
+        self.loginSuccess.addCallbacks(profile._loginSuccess, self._onLoginFailed)
+        self.loginSuccess.addErrback(self._onLoginFailed)
 
     def connectionMade(self):
         self.__buffer = ''        
         self.__chdr = None
-        # Nie trzeba tu nic robiæ, bo to server pierwszy wysy³a nam wiadomoœæ
+        # Nie trzeba tu nic robi¿, bo to server pierwszy wysy¿a nam wiadomo¿¿
 
     def __pop_data(self, n):
         data, self.__buffer = self.__buffer[:n], self.__buffer[n:]
@@ -71,36 +79,48 @@ class GaduClient(Protocol):
     # handlers
     def _handleWelcome(self, msg):
         self._log("Welcome seed is: " + str(msg.seed))
-
-        self.beforeAuth.callback( msg.seed )
-
-        login_klass = outclass_for_name('Login80')
-        login = login_klass(uin=self.user_profile.uin, \
-            login_hash=self.user_profile.password_hash(msg.seed) )
+        self.__seed = msg.seed
+        self.doLogin.callback(self.__seed)
+        
+    def _doLogin(self, result, *args, **kwargs):
+        self._log("Sending creditials to the server.")
+        login_klass = outclass_for_name('Login80')        
+        result[1].update( struct.pack("<i", self.__seed) )
+        login = login_klass(uin=result[0], login_hash=result[1].digest())
         self._sendPacket(login)
+        return True
+
+    def _onLoginFailed(self, failure, *args, **kwargs):
+        print 'Login failed.'
+        failure.printTraceback()
+        self.user_profile.onLoginFailure()
+        return failure
+
+    def _onInvalidCreditials(self, failure, *args, **kwargs):
+        print "User didn't provide necessary info"
+        failure.printTraceback()
+        self._onLoginFailed(failure, *args, **kawrgs)
 
     def _handleLoginOk80(self, msg):
-        self._log('Login successful.')
-        self.loginSuccess.callback(None)
+        print 'Login almost done - send the notify list.'
+        self.loginSuccess.callback(self)
 
     def _handleLoginFailed(self, msg):
-        self._log('Failed to login.')
+        print 'Server sent - login failed'
         self.loginSuccess.errback(None)
 
     def _handleStatus80(self, msg):       
-        self.user_profile.update_contact(msg.contact.uin, msg.contact)
-        
+        self.user_profile._update_contact(msg)
         
     def _handleNotifyReply80(self, msg):
         for struct in msg.contacts:
-            self.user_profile.update_contact(struct.uin, struct)
-        
+            self.user_profile.update_contact(struct)
 
     def _handleDisconnecting(self, msg):
          self.loseConnection()
 
-    def sendAllContacts(self):
-        contacts = self.user_profile.contacts.values()
+    def _sendAllContacts(self, result, *args, **kwargs):
+        contacts = list( self.user_profile.itercontacts() )
 
         if len(contacts) == 0:
             self.sendPacket( outclass_for_name('EmptyList')() )
@@ -112,11 +132,12 @@ class GaduClient(Protocol):
         while len(contacts) > 400:
             batch, contacts = constacts[:400], contacts[400:]
             self._sendPacket( nf_class(contacts= \
-                [GGStruct_Notify(uin=c.uin) for c in batch]) )
+                [GGStruct_Notify(uin=uin) for (uin, _) in batch]) )
 
         self._sendPacket( nl_class(contacts= \
-                [GGStruct_Notify(uin=c.uin) for c in contacts]) )
+                [GGStruct_Notify(uin=uin) for (uin, _) in contacts]) )
         self._log("Sent all contacts.")
+        return self
 
     #
     # High-level interface callbacks
