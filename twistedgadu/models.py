@@ -22,8 +22,16 @@ class UserProfile(object):
 
     password = property(__get_hashelem, __set_password)
 
-    def update_contact(self, struct):
-        pass
+    def _updateContact(self, notify):
+        # notify is of class GGStruct_Status80
+        try:
+            contact = self.__contacts[notify.uin]
+        except KeyError:
+            contact = Contact.simple_make(self, notify.uin, "Unknown User")
+
+        contact.status =  notify.status
+        contact.description = notify.description
+        self.onContactStatusChange(contact)
 
     def _creditials(self, result, *args, **kwargs):
         """Called by protocol, to get creditials, result will be passed to login
@@ -31,7 +39,7 @@ class UserProfile(object):
         return self.onCreditialsNeeded()
 
     def _loginSuccess(self, conn, *args, **kwargs):
-        self.__connecton = conn
+        self.__connection = conn
         self.onLoginSuccess()
         return self
 
@@ -62,6 +70,9 @@ class UserProfile(object):
 
     def exportContacts(self):
         pass
+
+    def disconnect(self):
+        self.__connection.transport.loseConnection()
 
     # stuff that should be implemented by user
     def onCreditialsNeeded(self, *args, **kwargs):
@@ -140,6 +151,8 @@ class Contact(object):
             if not isinstance(getattr(self, k), v.type):
                 raise ValueError("Field %s has to be of class %s." % (k, v.type.__name__)) 
 
+    def __str__(self):
+        return "[%s,%d: %s]" % (self.GGNumber, self.status, self.description)
 
     @property
     def uin(self):

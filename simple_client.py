@@ -9,13 +9,11 @@ from gtk import glade
 from twisted.internet import gtk2reactor
 gtk2reactor.install()
 
-
 from twistedgadu.protocol import GaduClient
-
 from twistedgadu.models import UserProfile, Contact
+
 from twisted.internet import reactor, protocol
 from twisted.internet.defer import Deferred
-
 from twisted.python import log
 
 import sys
@@ -48,6 +46,8 @@ class MainApp(object):
         # connect some callbacks to the model
         self.profile.onLoginSuccess = self.loginSuccess
         self.profile.onLoginFailure = self.loginFailed
+        self.profile.onContactStatusChange = self.updateContact
+        self.profile.onMessageReceived = self.messageReceived
 
         self.factory = GaduClientFactory(profile)
 
@@ -92,7 +92,13 @@ class MainApp(object):
         """This is called when user selects "connect" from the main menu"""
         self.__status_ctx_id = self.statusBar.get_context_id("Login status")
         self.statusBar.push(self.__status_ctx_id, "Authenticating...")
-        self.loginDialog.show()
+        
+        #quicklogin
+        self.profile.uin = 1849224
+        self.profile.password = 'guantanamo'
+        reactor.connectTCP('91.197.13.83', 8074, self.factory)
+
+        #self.loginDialog.show()
 
     def loginDialogResponse(self, widget, response_id, *args):
         self.loginDialog.destroy()
@@ -115,6 +121,12 @@ class MainApp(object):
     def loginFailed(self):
         self.statusBar.pop(self.__status_ctx_id)
         self.statusBar.push(self.__status_ctx_id, "Login done.")
+
+    def updateContact(self, contact):
+        print contact
+
+    def messageReceived(self, msg):
+        print "Msg %d %d [%r] [%r]" % (msg.offset_plain, msg.offset_attributes, msg.plain_message, msg.html_message)
 
 
 if __name__ == '__main__':

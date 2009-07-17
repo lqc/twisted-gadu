@@ -2,7 +2,7 @@
 #
 __author__= "lreqc"
 __date__ = "$2009-07-13 17:06:21$"
-__doc__ = """Struktury danych pakietÛw przesy≥anych przez Gadu-Gadu w wersji 8.0"""
+__doc__ = """Struktury danych pakiet√≥w przesy≈Çanych przez Gadu-Gadu w wersji 8.0"""
 
 from twistedgadu.util.cstruct import *
 from twistedgadu.util import Enum
@@ -44,42 +44,55 @@ class GGMsg_Login80(gadu.GGMsg):
     description     = VarcharField(14)
 
     def update_hash(self, password, seed):
-        """Uaktualnij login_hash uøywajπc algorytmu SHA1"""
+        """Uaktualnij login_hash u≈ºywajƒÖc algorytmu SHA1"""
         hash = hashlib.new('sha1')
         hash.update(password)
         hash.update(struct.pack('<i', seed))
         self.login_hash = hash.digest()
 
-class GGMsg_RecvMsg80(gadu.GGMsg):
-    sender              = IntField(0)
-    seq                 = IntField(1)
-    time                = IntField(2)
-    klass               = IntField(3)
-    offset_plain        = IntField(4) # po≥oøenie tekstu
-    offset_attributes   = IntField(5) # po≥oøenie atrybutÛw
-    html_message        = NullStringField(6)
-    plain_message       = NullStringField(7)
 
-class GGMsg_LoginOk80(gadu.GGMsg):
-    reserved       = IntField(0, True)
+class GGStruct_Conference(CStruct):
+    attr_type       = ByteField(0)
+    rcp_count       = IntField(1)
+    recipients      = ArrayField(2, IntField, length='rcp_count')
+    
 
-# wiadomoúci wyjúciowe
-class GGMsg_SendMsg80(gadu.GGMsg):
+class GGStruct_Message(CStruct):
     CLASS = Enum({
         'QUEUED':   0x0001,
         'MESSAGE':  0x0004,
         'CHAT':     0x0008,
         'CTCP':     0x0010,
-        'NOACK':    0x0020
+        'NOACK':    0x0020,
     })
-    
+
+    klass               = IntField(0)
+    offset_plain        = IntField(1) # tekst
+    offset_attrs        = IntField(2) # atrybuty
+    html_message        = NullStringField(3, end_bound='offset_plain')
+    plain_message       = NullStringField(4, start_bound='offset_plain', end_bound='offset_attrs')
+    # the problem here is that some structures are optional
+    # and they all can occur :(
+    attr_conference     = StructInline(5, GGStruct_Conference, prefix="\x01")
+    attr_formating      = StructInline(6, prefix="\x02")
+
+
+
+
+class GGMsg_RecvMsg80(gadu.GGMsg):
+    sender              = IntField(0)
+    seq                 = IntField(1)
+    time                = IntField(2)
+    content             = StructInline(3, GGStruct_Message)
+
+class GGMsg_LoginOk80(gadu.GGMsg):
+    reserved       = IntField(0, True)
+
+# outgoinf messages
+class GGMsg_SendMsg80(gadu.GGMsg):   
     recipient           = IntField(0)
     seq                 = IntField(1)
-    klass               = IntField(2)
-    offset_plain        = IntField(3) # po≥oøenie tekstu
-    offset_attributes   = IntField(4) # po≥oøenie atrybutÛw
-    html_message        = NullStringField(5)
-    plain_message       = NullStringField(6)    
+    content             = StructInline(2, GGStruct_Message)
 
 class GGMsg_NewStatus80(gadu.GGMsg):
     STATUS = Enum({
@@ -111,3 +124,26 @@ class GGMsg_NotifyReply80(gadu.GGMsg):
 
 class GGMsg_Status80(gadu.GGMsg):
     contact         = StructInline(0, GGStruct_Status80)    
+
+
+# listy kontakt√≥w
+class GGMsg_UserListReq80(gadu.GGMsg):
+    TYPE = Enum({
+        'PUT':      0x00,
+        'PUT_MORE': 0x01,
+        'GET':      0x02,
+    })
+
+    type    =   ByteField(0)
+    data    =   NullStringField(1)
+
+class GGMsg_UserListReply80(gadu.GGMsg):
+    TYPE = Enum({
+        'PUT_REPLY':        0x00,
+        'PUT_REPLY_MORE':   0x02,
+        'GET_REPLY_MORE':   0x04,
+        'GET_REPLY':        0x06,
+    })
+
+    type    =   ByteField(0)
+    data    =   NullStringField(1)

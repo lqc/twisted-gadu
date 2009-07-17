@@ -93,7 +93,7 @@ class GaduClient(Protocol):
     def _onLoginFailed(self, failure, *args, **kwargs):
         print 'Login failed.'
         failure.printTraceback()
-        self.user_profile.onLoginFailure()
+        self.user_profile.onLoginFailure(failure)
         return failure
 
     def _onInvalidCreditials(self, failure, *args, **kwargs):
@@ -110,11 +110,15 @@ class GaduClient(Protocol):
         self.loginSuccess.errback(None)
 
     def _handleStatus80(self, msg):       
-        self.user_profile._update_contact(msg)
+        self.user_profile._updateContact(msg)
         
     def _handleNotifyReply80(self, msg):
         for struct in msg.contacts:
-            self.user_profile.update_contact(struct)
+            self.user_profile._updateContact(struct)
+
+    def _handleRecvMsg80(self, msg):
+        self.user_profile.onMessageReceived(msg)
+
 
     def _handleDisconnecting(self, msg):
          self.loseConnection()
@@ -123,8 +127,8 @@ class GaduClient(Protocol):
         contacts = list( self.user_profile.itercontacts() )
 
         if len(contacts) == 0:
-            self.sendPacket( outclass_for_name('EmptyList')() )
-            return
+            self._sendPacket( outclass_for_name('ListEmpty')() )
+            return self
 
         nl_class = outclass_for_name('NotifyLast')
         nf_class = outclass_for_name('NotifyFirst')
