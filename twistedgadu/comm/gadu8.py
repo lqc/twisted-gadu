@@ -51,11 +51,10 @@ class GGMsg_Login80(gadu.GGMsg):
         self.login_hash = hash.digest()
 
 
-class GGStruct_Conference(CStruct):
-    attr_type       = ByteField(0)
-    rcp_count       = IntField(1)
-    recipients      = ArrayField(2, IntField, length='rcp_count')
-    
+#class GGStruct_Conference(CStruct):
+#    attr_type       = ByteField(0)
+#    rcp_count       = IntField(1)
+#    recipients      = ArrayField(2, IntField, length='rcp_count)
 
 class GGStruct_Message(CStruct):
     CLASS = Enum({
@@ -69,15 +68,12 @@ class GGStruct_Message(CStruct):
     klass               = IntField(0)
     offset_plain        = IntField(1) # tekst
     offset_attrs        = IntField(2) # atrybuty
-    html_message        = NullStringField(3, end_bound='offset_plain')
-    plain_message       = NullStringField(4, start_bound='offset_plain', end_bound='offset_attrs')
+    html_message        = NullStringField(3)
+    plain_message       = NullStringField(4)
     # the problem here is that some structures are optional
     # and they all can occur :(
-    attr_conference     = StructInline(5, GGStruct_Conference, prefix="\x01")
-    attr_formating      = StructInline(6, prefix="\x02")
-
-
-
+ #   attr_conference     = StructInline(5, GGStruct_Conference, prefix="\x01")
+ #   attr_formating      = StructInline(6, prefix="\x02")
 
 class GGMsg_RecvMsg80(gadu.GGMsg):
     sender              = IntField(0)

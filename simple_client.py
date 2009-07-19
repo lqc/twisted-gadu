@@ -126,7 +126,7 @@ class MainApp(object):
         print contact
 
     def messageReceived(self, msg):
-        print "Msg %d %d [%r] [%r]" % (msg.offset_plain, msg.offset_attributes, msg.plain_message, msg.html_message)
+        print "Msg %d %d [%r] [%r]" % (msg.content.offset_plain, msg.content.offset_attributes, msg.content.plain_message, msg.content.html_message)
 
 
 if __name__ == '__main__':

@@ -1,5 +1,5 @@
 # -*- coding: utf-8
-import struct
+from lqsoft.cstruct.fields import CField
 
 class MetaStruct(type):
     def __new__(cls, name, bases, cdict):             
@@ -52,18 +52,23 @@ class CStruct(object):
 
     def __init__(self, **kwargs):       
         for field in self._field_order:                        
-            setattr(self, '_' + field.name, field.validate( field.extract(kwargs)) )
+            setattr(self, '_' + field.name, field._validate(self, kwargs[field.name]) )
 
     def pack(self):
         s = ''
-        for field in self._field_order:
+        for field in self._field_order:            
             s += field.pack( getattr(self, '_' + field.name) )
         return s
 
     @classmethod
-    def unpack(cls, data):
-        print "Unpacking class: " + cls.__name__
+    def unpack(cls, data, offset=0):
+        print "Unpacking class: " + cls.__name__        
         dict = {}
+
         for field in cls._field_order:
-            dict[field.name], data = field.unpack(data)
-        return cls(**dict), data
+            print "Unpacking field: " + field.name
+            value, next_offset = field.unpack(dict, data, offset)
+            dict[field.name] = value
+            offset = next_offset            
+             
+        return cls(**dict), offset
