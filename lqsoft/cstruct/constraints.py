@@ -1,13 +1,13 @@
 # -*- coding: utf-8
 
-def nop(self, *args, **kwargs):
-    return True
+import types
 
 # default priorities
 PRIO_OFFSET = 100
 PRIO_PREFIX = 500
 PRIO_TYPE = 600
 PRIO_LENGTH = 700
+PRIO_MAXLENGTH = 750
 PRIO_NBOUNDS = 800
 
 class IConstraint(object):
@@ -130,48 +130,59 @@ class NumericBounds(IConstraint):
                 % (opts['field'].name, opts['value']) )
 
 class LengthConstraint(IConstraint):
-    def __init__(self, length, padding_func, priority=PRIO_LENGTH):
+    def __init__(self, length, padding_func, priority=PRIO_LENGTH, opt_name='length'):
         IConstraint.__init__(self, priority)
 
-        if isinstance(length, str):
+        if isinstance(length, property):
+            self.before_unpack = self.before_unpack_prop
+        elif isinstance(length, str):
             self.before_unpack = self.before_unpack_field
         elif isinstance(length, int):
             self.before_unpack = self.before_unpack_number
         else:
             raise ValueError("Length constraint must contain a number or a field name.")
 
+        self._opt_name = opt_name
         self.__length = length
         self.__padding_func = padding_func
 
     def on_value_set(self, opts):
         L = len(opts['value'])
-        if isinstance(self.__length, str):            
-            setattr(opts['obj'], self.__length, L)
-        elif L > self.__length:
+        if isinstance(self.__length, property):
+            return self.__length.__set__(opts, L)            
+        if isinstance(self.__length, str):
+            return setattr(opts['obj'], self.__length, L)
+        if self.__length < 0:
+            return # do nothing
+
+        if L > self.__length:
             raise ValueError("Field %s has limited length of %d." % (opts['field'].name, self.__length) )
-        else:
+
+        if self.__padding_func: 
             opts['padding'] = (self.__length - L)
             self.__padding_func(opts)
 
     def before_pack(self, opts):
         # the value is about to be packed
         # nothing to do here, 'cause we ensure proper length in the trigger
-        opts['length'] = len(opts['value'])
+        opts[self._opt_name] = len(opts['value'])
 
     def pack(self, opts):
         # value is being packed - add our property
-        opts['length'] = len(opts['value'])
+        opts[self._opt_name] = len(opts['value'])
+
+    def before_unpack_prop(self, opts):
+        opts[self._opt_name] = self.__length.__get__(opts)
+        return True
 
     def before_unpack_number(self, opts):
-        opts['length'] = self.__length            
+        opts[self._opt_name] = self.__length
         return True
 
     def before_unpack_field(self, opts):
-        opts['length'] = getattr(opts['obj'], self.__length)
+        opts[self._opt_name] = getattr(opts['obj'], self.__length)
         return True
 
-    def validate(self, obj, value):
-        if isinstance(value, str) and isinstance(self.__length, int) \
-         and len(value) > self.__length:
-            return False
-        return True
+class MaxLengthConstraint(LengthConstraint):
+    def __init__(self, length, priority=PRIO_MAXLENGTH):
+        LengthConstraint.__init__(self, length, None, priority, opt_name='max_length')

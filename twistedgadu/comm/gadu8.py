@@ -4,7 +4,11 @@ __author__= "lreqc"
 __date__ = "$2009-07-13 17:06:21$"
 __doc__ = """Struktury danych pakietów przesyłanych przez Gadu-Gadu w wersji 8.0"""
 
-from twistedgadu.util.cstruct import *
+from lqsoft.cstruct.common import CStruct
+from lqsoft.cstruct.fields.numeric import *
+from lqsoft.cstruct.fields.text import *
+from lqsoft.cstruct.fields.complex import *
+
 from twistedgadu.util import Enum
 
 import twistedgadu.comm.gadu_base as gadu
@@ -27,20 +31,20 @@ class GGStruct_Status80(CStruct):
 # messages
 
 class GGMsg_Login80(gadu.GGMsg):
-    uin             = IntField(0, True, None)
-    language        = StringField(1, 2, 'pl')
-    hash_type       = ByteField(2, True, 0x02)
-    login_hash      = StringField(3, 64)
-    status          = IntField(4, True, 0x02)
-    flags           = IntField(5, True, 0x03)
-    features        = IntField(6, True, 0x37)
+    uin             = UIntField(0)
+    language        = StringField(1, length=2, default='pl')
+    hash_type       = UByteField(2, default=0x02)
+    login_hash      = StringField(3, length=64)
+    status          = UIntField(4, default=0x02)
+    flags           = UIntField(5, default=0x03)
+    features        = UIntField(6, default=0x37)
     local_ip        = IntField(7)
     local_port      = ShortField(8)
     external_ip     = IntField(9)
     external_port   = ShortField(10)
-    image_size      = ByteField(11, True, 0xff)
-    unknown01       = ByteField(12, True, 0x64)
-    version         = VarcharField(13, "Gadu-Gadu Client build 8.0.0.9103")
+    image_size      = UByteField(11, default=0xff)
+    unknown01       = UByteField(12, default=0x64)
+    version         = VarcharField(13, default="Gadu-Gadu Client build 8.0.0.9103")
     description     = VarcharField(14)
 
     def update_hash(self, password, seed):
@@ -51,10 +55,25 @@ class GGMsg_Login80(gadu.GGMsg):
         self.login_hash = hash.digest()
 
 
-#class GGStruct_Conference(CStruct):
-#    attr_type       = ByteField(0)
-#    rcp_count       = IntField(1)
-#    recipients      = ArrayField(2, IntField, length='rcp_count)
+class GGStruct_Conference(CStruct):
+    attr_type       = ByteField(0, default='0x01')
+    rcp_count       = IntField(1)
+    recipients      = ArrayField(2, length='rcp_count', subfield=IntField(0))
+
+class GGStruct_RichText(CStruct):
+    attr_type       = ByteField(0, default='0x02')
+    length          = UShortField(1)
+    format          = StringField(2, length='length')
+
+def html_message_prop():
+        def html_message_setter(opts, new_value):
+            #opts['obj'].offset_plain = opts['offset'] + len(opts['value'])
+            pass
+
+        def html_message_getter(opts):            
+            return opts['obj'].offset_plain - opts['offset']
+
+        return property(html_message_getter, html_message_setter)
 
 class GGStruct_Message(CStruct):
     CLASS = Enum({
@@ -68,18 +87,16 @@ class GGStruct_Message(CStruct):
     klass               = IntField(0)
     offset_plain        = IntField(1) # tekst
     offset_attrs        = IntField(2) # atrybuty
-    html_message        = NullStringField(3)
-    plain_message       = NullStringField(4)
-    # the problem here is that some structures are optional
-    # and they all can occur :(
- #   attr_conference     = StructInline(5, GGStruct_Conference, prefix="\x01")
- #   attr_formating      = StructInline(6, prefix="\x02")
+    html_message        = StringField(3, length=html_message_prop())
+    plain_message       = NullStringField(4, offset='offset_plain')
+    attr_conference     = StructField(5, struct=GGStruct_Conference, prefix__ommit="\x01", offset='offset_attrs')
+    attr_richtext       = StructField(6, struct=GGStruct_RichText, prefix__ommit="\x02")
 
 class GGMsg_RecvMsg80(gadu.GGMsg):
     sender              = IntField(0)
     seq                 = IntField(1)
     time                = IntField(2)
-    content             = StructInline(3, GGStruct_Message)
+    content             = StructField(3, struct=GGStruct_Message)
 
 class GGMsg_LoginOk80(gadu.GGMsg):
     reserved       = IntField(0, True)
@@ -88,7 +105,7 @@ class GGMsg_LoginOk80(gadu.GGMsg):
 class GGMsg_SendMsg80(gadu.GGMsg):   
     recipient           = IntField(0)
     seq                 = IntField(1)
-    content             = StructInline(2, GGStruct_Message)
+    content             = StructField(2, struct=GGStruct_Message)
 
 class GGMsg_NewStatus80(gadu.GGMsg):
     STATUS = Enum({
@@ -116,10 +133,10 @@ class GGMsg_NewStatus80(gadu.GGMsg):
     description     = VarcharField(2)
 
 class GGMsg_NotifyReply80(gadu.GGMsg):
-    contacts        = StructArray(0, GGStruct_Status80)
+    contacts        = ArrayField(0, length=-1, subfield=StructField(0, struct=GGStruct_Status80))
 
 class GGMsg_Status80(gadu.GGMsg):
-    contact         = StructInline(0, GGStruct_Status80)    
+    contact         = StructField(0, struct=GGStruct_Status80)
 
 
 # listy kontaktów

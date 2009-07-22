@@ -70,12 +70,17 @@ class ArrayField(CField):
     # unpacking
     def _retrieve_value(self, opts):
         l = []
+        data_len = len(opts['data'])
+        array_len = opts['length']
         offset = opts['offset']
 
-        for i in xrange(0, opts['length']):
+        i = 0
+        while (array_len < 0 and offset < data_len) or (0 <= i < array_len):
             self.__subfield.name = str(i)
             v, offset = self.__subfield.unpack(opts['obj'], opts['data'], offset)
-            l.append(v)            
+            l.append(v)
+            i += 1
+            
         return (l, offset)
 
     def item_set_value(self, wrapper, item_name, new_value):
@@ -99,23 +104,27 @@ class ArrayField(CField):
     # no need to wrap the get
     
 
-class StructInline(CField):
-    def __init__(self, idx, default=None, **kwargs):
+class StructField(CField):
+    """Field containing a sub-structure - useful for defining common field groups."""
+
+    KEYWORDS = dict(CField.KEYWORDS,
+        inner = lambda cvalue: const.ValueTypeConstraint(cvalue) )
+
+    def __init__(self, idx, struct, default=None, **kwargs):
         CField.__init__(self, idx, default, **kwargs)
-        self.struct_class = kwargs.get('struct')
+        self._struct_klass = struct
 
-    def pack(self, value):
-        return value.pack()
+    def before_pack(self, obj, offset, **opts):
+        value = getattr(obj, self.name)
+        if (value == None) and self.nullable:
+            return 0 # field is ommited
+        return value._before_pack()
 
-    def unpack(self, data):
-        return self.struct_class.unpack(data)
+    def pack(self, obj, offset, **opts):
+        value = getattr(obj, self.name)
+        if (value == None) and self.nullable:
+            return '' # field is ommited
+        return value._pack()
 
-    def validate(self, value):
-        CField.validate(self, value)
-
-        if not isinstance(value, self.struct_class):
-            raise ValueError('StructInline must contain a structures of class %s.' \
-                    % self.struct_class.__name__ )
-
-        return value
-
+    def _retrieve_value(self, opts):
+        return self._struct_klass.unpack(opts['data'], opts['offset'])

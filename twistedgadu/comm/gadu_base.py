@@ -2,19 +2,21 @@
 __author__="lreqc"
 __date__ ="$2009-07-14 01:07:32$"
 
-from twistedgadu.util.cstruct import *
+from lqsoft.cstruct.common import CStruct
+from lqsoft.cstruct.fields import complex, numeric, text
+
 from twistedgadu.util import Enum
 
 class GGPacketHeader(CStruct):
-    """Struktura opisujπca nag≥Ûwek pakietu w GG"""
-    msg_type        = IntField(0, True)
-    msg_length      = IntField(1, True)
+    """Struktura opisujƒÖca nag≈Ç√≥wek pakietu w GG"""
+    msg_type        = numeric.UIntField(0)
+    msg_length      = numeric.UIntField(1)
 
     def __str__(self):
         return '[GGHDR: type=%d, length %d]' % (self.msg_type, self.msg_length)
 
 class GGMsg(CStruct):    
-    """WspÛlna nadklasa dla wszystkich wiadomoúci w GG"""
+    """Wsp√≥lna nadklasa dla wszystkich wiadomo≈õci w GG"""
     def as_packet(self, type):
         data = self.pack()
         hdr = GGPacketHeader(msg_type=type, msg_length=len(data))
@@ -23,10 +25,10 @@ class GGMsg(CStruct):
     def __str__(self):
         return self.__class__.__name__
 #
-# Wiadomoúci przychodzπce
+# Wiadomo≈õci przychodzƒÖce
 #
 class GGMsg_Welcome(GGMsg):
-    seed = IntField(0)
+    seed = numeric.IntField(0)
     
 class GGMsg_SendMsgAck(GGMsg):
     MSG_STATUS = Enum({
@@ -35,9 +37,9 @@ class GGMsg_SendMsgAck(GGMsg):
         'NOT_DELIVERED': 0x0006
     })
 
-    msg_status  = IntField(0)
-    recipient   = IntField(1)
-    seq         = IntField(2)
+    msg_status  = numeric.IntField(0)
+    recipient   = numeric.IntField(1)
+    seq         = numeric.IntField(2)
 
 class GGMsg_LoginFailed(GGMsg):
     pass
@@ -56,23 +58,23 @@ class GGStruct_Notify(CStruct):
         'IGNORE':  0x04
     })
     
-    uin             = IntField(0)
-    type            = ByteField(1, True, 0x03)
+    uin             = numeric.UIntField(0)
+    type            = numeric.UByteField(1, default=0x03)
 
     def __str__(self):
         return "%d[%d]" (self.uin, self.type)
 
 class GGMsg_NotifyFirst(GGMsg):
-    contacts        = StructArray(0, GGStruct_Notify)
+    contacts        = complex.ArrayField(0, complex.StructField(0, struct=GGStruct_Notify), length=-1)
 
 class GGMsg_NotifyLast(GGMsg):
-    contacts        = StructArray(0, GGStruct_Notify)
+    contacts        = complex.ArrayField(0, complex.StructField(0, struct=GGStruct_Notify), length=-1)
 
 class GGMsg_AddNotify(GGMsg):
-    contanct        = StructInline(0, GGStruct_Notify)
+    contanct        = complex.StructField(0, struct=GGStruct_Notify)
 
 class GGMsg_RemoveNotify(GGMsg):
-    contanct        = StructInline(0, GGStruct_Notify)
+    contanct        = complex.StructField(0, struct=GGStruct_Notify)
 
 class GGMsg_Pong(GGMsg):
     pass

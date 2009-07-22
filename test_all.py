@@ -10,8 +10,8 @@ import lqsoft.cstruct.test.test_complex
 
 test_cases = [
     lqsoft.cstruct.test.test_complex,
-#    lqsoft.cstruct.test.test_numeric,
-#    lqsoft.cstruct.test.test_strings,
+    lqsoft.cstruct.test.test_numeric,
+    lqsoft.cstruct.test.test_strings,
 ]
 
 if __name__ == "__main__":

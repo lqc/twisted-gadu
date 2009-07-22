@@ -4,7 +4,10 @@
 __author__ = "Łukasz Rekucki"
 __date__ = "$2009-07-19 09:50:34$"
 
-from lqsoft.cstruct.common import CField
+from lqsoft.cstruct.common import CField, CStruct
+from lqsoft.cstruct.fields.numeric import UIntField
+from lqsoft.cstruct.fields.complex import StructField
+
 from lqsoft.cstruct.constraints import *
 
 def string_padder(opts):
@@ -20,6 +23,9 @@ class StringField(CField):
         CField.__init__(self, idx, default, **dict(kwargs, length=length) )
         
     def _format_string(self, opts):
+        if opts['length'] == -1:
+            opts['length'] = len(opts['data']) - opts['offset']
+            
         return '<'+str(opts['length'])+'s'
 
     def _retrieve_value(self, opts):
@@ -28,16 +34,20 @@ class StringField(CField):
 
   
 class NullStringField(CField):
-
+    KEYWORDS = dict(CField.KEYWORDS,
+        max_length= lambda lv: MaxLengthConstraint(length=lv) )
+            
     def _format_string(self, opts):
         return '<'+str(opts['length'])+'s'
 
-    def before_unpack(self, opts):
-        CField.before_unpack(self, opts)
+    def _before_unpack(self, opts):
+        CField._before_unpack(self, opts)
         try:
-            opts['length'] = opts['data'].index('\0', opts['offset']) - opts['offset']
+            opts['length'] = opts['data'].index('\0', opts['offset']) - opts['offset'] + 1
+            if opts.has_key('max_length'):
+                opts['length'] = min(opts['max_length'], opts['length'])
         except ValueError:
-            raise UnpackError("Unterminated null string occured.")
+            raise UnpackException("Unterminated null string occured.")
 
     def before_pack(self, obj, offset, **opts):
         value = getattr(obj, self.name)
@@ -56,3 +66,13 @@ class NullStringField(CField):
             raise ValueError("NullStringField value must a string with last character == '\\0'.")
         
         return CField.set_value(self, obj, value)
+
+class CStruct_VarString(CStruct):
+    length = UIntField(0)
+    text = StringField(1, length='length')
+
+class VarcharField(StructField):
+    def __init__(self, idx, default='', **opts):        
+        if isinstance(default, str):
+            default = CStruct_VarString(text=default)            
+        StructField.__init__(self, idx, CStruct_VarString, default, **opts)

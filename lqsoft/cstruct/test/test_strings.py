@@ -20,6 +20,14 @@ class StringFieldTest(unittest.TestCase):
         self.sdata = struct.pack("<"+str(self.slen)+"s", self.svalue)
         self.sdata_ext = struct.pack("<I", self.slen) + self.sdata
 
+    def testNegativeLength(self):
+        class TestStruct(CStruct):
+            text = StringField(0, length=-1)
+
+        s, offset = TestStruct.unpack(self.sdata)
+        self.assertEqual(s.text, self.svalue)
+        self.assertEqual(offset, self.slen)
+
     def test0PackWithPadding(self):
         class TestStruct(CStruct):
             text = StringField(0, length=32)

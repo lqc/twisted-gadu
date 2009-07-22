@@ -156,7 +156,7 @@ class Contact(object):
 
     @property
     def uin(self):
-        return self.GGNumber
+        return int(self.GGNumber)
 
     @property
     def notify_flags(self):

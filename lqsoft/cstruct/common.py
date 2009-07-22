@@ -10,7 +10,29 @@ import struct,sys
 def log(msg):
     sys.stderr.write(msg+'\n')
 
-class CField(object):
+
+class ICField(object):
+
+    def add_constraint(self, constr):
+        pass
+
+    def before_pack(self, obj, offset, **opts):
+        pass
+
+    def pack(self, obj, offset, **opts):
+        pass
+
+    def unpack(self, obj, data, pos):
+        pass
+
+    def get_value(self, obj, current_value):
+        pass
+
+    def set_value(self, obj, new_value):
+        pass
+
+
+class CField(ICField):
 
     KEYWORDS = {
         'offset': const.OffsetConstraint,
@@ -49,7 +71,7 @@ class CField(object):
             index += 1
         self.constraints.insert(index, constr)
 
-    def before_unpack(self, opts):
+    def _before_unpack(self, opts):
         """Prepare the data for unpacking."""
         for c in self.constraints:
             if not c.before_unpack(opts):
@@ -92,7 +114,7 @@ class CField(object):
         #  * does the field prefix match ?
         #  * any other stuff the user wants to check
         opts = {'obj': obj, 'data': data, 'offset': pos}
-        self.before_unpack(opts)
+        self._before_unpack(opts)
         
         if not opts.get('__ommit', False):
             return self._retrieve_value(opts)
@@ -182,36 +204,41 @@ class CStruct(object):
         for field in self._field_order:            
             setattr(self, field.name, kwargs.get(field.name,field.default))
 
-    def pack(self):
-        off = 0
-
+    def _before_pack(self):
+        offset=0
         for field in self._field_order:
-            off += field.before_pack(self, off)
-            
+            offset += field.before_pack(self, offset)
+        return offset
+
+    def _pack(self):
         s = ''
         off = 0
         for field in self._field_order:
             data = field.pack(self, off)
             off += len(data)
             s += data
-            
         return s
 
+    def pack(self):
+        self._before_pack()
+        return self._pack()        
+
     @classmethod
-    def unpack(cls, data, buf_offset=0):
-        #print "Unpacking class: " + cls.__name__
+    def unpack(cls, data, offset=0):
+        print "Unpacking class %s: offset=%d, total_buf=%d" % (cls.__name__, offset, len(data))
         dict = {}
         dp = ItemWrapper(dict)
-        offset = 0
         
         for field in cls._field_order:
-            #print "Unpacking field: " + field.name
-            value, next_offset = field.unpack(dp, data[buf_offset:], offset)
+            print "Unpacking field @%d: %s" % (offset, field.name)
+            value, next_offset = field.unpack(dp, data, offset)
             dict[field.name] = value
             offset = next_offset
+            print "Unpacked: " + repr(value)
 
-        return cls(**dict), buf_offset + offset
-
+        instance = cls(**dict)
+        print "Unpacked: " + str(instance)
+        return instance, offset
     
     def __field_value(self, field, default=None):
         return field.get_value(self, getattr(self, '_' + field.name, default))
@@ -287,7 +314,6 @@ class ListItemWrapper(ItemWrapper):
             return ItemWrapper.__setattr__(self, name, value)    
         
 class UnpackException(Exception):
-
     def __init__(self, msg, constraint):
         Exception.__init__(self, msg)
         self.constraint = constraint

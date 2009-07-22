@@ -6,7 +6,8 @@ import struct
 
 from lqsoft.cstruct.common import CStruct
 from lqsoft.cstruct.fields.complex import *
-from lqsoft.cstruct.fields.numeric import IntField
+from lqsoft.cstruct.fields.numeric import IntField, UIntField
+from lqsoft.cstruct.fields.text import NullStringField
 from lqsoft.cstruct.constraints import *
 
 __author__="lreqc"
@@ -43,4 +44,34 @@ class ArrayFieldTest(unittest.TestCase):
         self.assertEqual(s.array, self.svalue)
         for i in xrange(0, self.slen):
             self.assertEqual( s.array[i], self.svalue[i])
+
+class StructFieldTest(unittest.TestCase):
+    
+    def setUp(self):
+        class InnerStruct(CStruct):
+            one = IntField(0, default=13)
+            two = IntField(1, default=42)
+
+        class OuterStruct(CStruct):
+            pad = NullStringField(0, default='KOT\0')
+            inner = StructField(1, struct=InnerStruct)
+            post = UIntField(2, default=0xbebafeca)
+
+        self.OuterStruct = OuterStruct
+        self.InnerStruct = InnerStruct
+
+        self.inner = InnerStruct()
+        self.inner_data = self.inner.pack()
+
+    def testAccess(self):        
+        s = self.OuterStruct(inner=self.inner)
+        self.assertEqual(s.pad, 'KOT\0')
+        self.assertEqual(s.post, 0xbebafeca)
+        self.assertEqual(s.inner, self.inner)
+
+    def testPack(self):
+        s = self.OuterStruct(inner=self.inner)
+        data = s.pack()
+        print repr(data)
+        self.assertEqual( data[4:-4], self.inner_data )
         

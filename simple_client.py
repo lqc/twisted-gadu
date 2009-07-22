@@ -94,8 +94,8 @@ class MainApp(object):
         self.statusBar.push(self.__status_ctx_id, "Authenticating...")
         
         #quicklogin
-        self.profile.uin = 1849224
-        self.profile.password = 'guantanamo'
+        self.profile.uin = 2578178
+        self.profile.password = 'qwerty'
         reactor.connectTCP('91.197.13.83', 8074, self.factory)
 
         #self.loginDialog.show()
@@ -126,7 +126,7 @@ class MainApp(object):
         print contact
 
     def messageReceived(self, msg):
-        print "Msg %d %d [%r] [%r]" % (msg.content.offset_plain, msg.content.offset_attributes, msg.content.plain_message, msg.content.html_message)
+        print "Msg %d %d [%r] [%r]" % (msg.content.offset_plain, msg.content.offset_attrs, msg.content.plain_message, msg.content.html_message)
 
 
 if __name__ == '__main__':
