@@ -1,87 +1,106 @@
 # -*- coding: utf-8
 
+def nop(self, *args, **kwargs):
+    return True
 
-class IConstraint(object):    
+# default priorities
+PRIO_OFFSET = 100
+PRIO_PREFIX = 500
+PRIO_TYPE = 600
+PRIO_LENGTH = 700
+PRIO_NBOUNDS = 800
+
+class IConstraint(object):
+    def __init__(self, priority):
+        self.priority = priority
+
     def __str__(self):
         return self.__class__.__name__
 
-    def apply(self, opts):
+    def before_unpack(self, opts):
         return True
 
-    def validate(self, value):
+    def pack(self, opts):
         return True
 
-    def evaluate(self, ops):
+    def before_pack(self, opts):
         return True
+
+    def on_value_set(self, opts):
+        pass
     
 class PrefixConstraint(IConstraint):
+    def __init__(self, param, priority=PRIO_PREFIX):
+        IConstraint.__init__(self, priority)
 
-    def __init__(self, param):
         if not isinstance(param, str):
             raise ValueError("Prefix constraints takes a byte array as an argument")
         self.prefix = param
 
-    def apply(self, options):
-        i = options['offset']
-        l = len(options['data'])
+    def match(self, data, pos):
+        l = len(data)
         for char in self.prefix:
-            if i >= l: # prefix exceeds the data
+            if pos >= l: # prefix exceeds the data
                 return False
 
-            if options['data'][i] != char: # characters don't match
+            if data[pos] != char: # characters don't match
                 return False
-            i += 1
+            pos += 1
         return True
+
+    def before_unpack(self, opts):
+        return self.match(opts['data'], opts['offset'])
 
 class OffsetConstraint(IConstraint):
 
-    def __init__(self, param):
+    def __init__(self, param, priority=PRIO_OFFSET):
+        IConstraint.__init__(self, priority)
+
         if isinstance(param, str):
-            self.apply = _apply_field
+            self.before_upack = self.before_upack_field
         elif isinstance(param, int):
-            self.apply = _apply_number
+            self.before_upack = self.before_upack_number
         else:
             raise ValueError("Offset constraint must contain a number or a valid field name.")
         
         self.__offset = param
 
-    def _apply_number(self, options):
+    def before_upack_number(self, options):
         if self.__offset != options['offset']:
             return False
         return True
 
-    def _apply_field(self, options):
-        off_field = getattr(options['dict'], self.__offset)
+    def before_upack_field(self, options):
+        off_field = getattr(options['obj'], self.__offset)
         if not isinstance(off_field, NumericField):
             raise ValueError("Field offset can only be attached \
                     to a numeric field.")
-        if getattr(options['dict'], self.__offset) != options['offset']:
+        if getattr(options['obj'], self.__offset) != options['offset']:
             return False
         return True      
 
-    def evaluate(self, options):
-        if isinstance(self.offset, int):
-            return lambda _: self.offset
-
-        if isinstance(self.offset, str):
-            if not self.parent:
-                raise ValueError("Offset of the fields is attached,\
-                    but no parent structure assigned")
-            off_field = getattr(self.parent, self.offset)
-            if not isinstance(off_field, NumericField):
-                raise ValueError("Field offset can only be attached \
-                    to a numeric field.")
-            return lambda instance: getattr(instance, self.offset)
-
+    def before_pack(self, options):       
+        if isinstance(self.__offset, str):           
+            setattr(options['obj'], self.__offset, options['offset'])
+            
+    def pack(self, options):
+        if isinstance(self.__offset, int) and (options['offset'] != self.__offset):
+            raise PackingException("Explicit offset of field %s was set, but position doesn't match" % \
+                options['field'].name )
+            
 class ValueTypeConstraint(IConstraint):
 
-    def __init__(self, typeklass):
+    def __init__(self, typeklass, priority=PRIO_TYPE):
+        IConstraint.__init__(self, priority)
+
         if not isinstance(typeklass, type):
             raise ValueError("This constraint must contain a type class.")
         self._klass = typeklass
 
-    def validate(self, value):
-        return isinstance(value, self._klass)
+    def on_value_set(self, opts):
+        if not isinstance(opts['value'], self._klass):
+            raise ValueError("Field %s accepts only instances of %s as value."\
+                % (opts['field'].name, self._klass.__name__) )
 
 class NumericBounds(IConstraint):
     BOUND_FOR_CTYPE = {
@@ -93,7 +112,10 @@ class NumericBounds(IConstraint):
         'ubyte':    (0, 255),
     }
 
-    def __init__(self, lower_bound = None, upper_bound = None, ctype=None):
+    def __init__(self, lower_bound = None, upper_bound = None, ctype=None, \
+      priority=PRIO_NBOUNDS):
+        IConstraint.__init__(self, priority)
+
         if ctype != None:
             self._lbound, self._ubound = self.BOUND_FOR_CTYPE[ctype]
         elif lower_bound == None or upper_bound == None:
@@ -102,33 +124,54 @@ class NumericBounds(IConstraint):
             self._lbound = lower_bound
             self._ubound = upper_bound
 
-    def validate(self, value):
-        return (self._lbound <= value <= self._ubound)
+    def on_value_set(self, opts):
+        if not (self._lbound <= opts['value'] <= self._ubound):
+            raise ValueError("Field %s - value %s out of bounds."\
+                % (opts['field'].name, opts['value']) )
 
 class LengthConstraint(IConstraint):
+    def __init__(self, length, padding_func, priority=PRIO_LENGTH):
+        IConstraint.__init__(self, priority)
 
-    def __init__(self, param):
-        if isinstance(param, str):
-            self.apply = _apply_field
-        elif isinstance(param, int):
-            self.apply = _apply_number
+        if isinstance(length, str):
+            self.before_unpack = self.before_unpack_field
+        elif isinstance(length, int):
+            self.before_unpack = self.before_unpack_number
         else:
-            raise ValueError("Length constraint must contain a number or a valid field name.")
+            raise ValueError("Length constraint must contain a number or a field name.")
 
-        self.__length = param
+        self.__length = length
+        self.__padding_func = padding_func
 
+    def on_value_set(self, opts):
+        L = len(opts['value'])
+        if isinstance(self.__length, str):            
+            setattr(opts['obj'], self.__length, L)
+        elif L > self.__length:
+            raise ValueError("Field %s has limited length of %d." % (opts['field'].name, self.__length) )
+        else:
+            opts['padding'] = (self.__length - L)
+            self.__padding_func(opts)
 
-    def _apply_number(self, opts):
+    def before_pack(self, opts):
+        # the value is about to be packed
+        # nothing to do here, 'cause we ensure proper length in the trigger
+        opts['length'] = len(opts['value'])
+
+    def pack(self, opts):
+        # value is being packed - add our property
+        opts['length'] = len(opts['value'])
+
+    def before_unpack_number(self, opts):
         opts['length'] = self.__length            
         return True
 
-    def _apply_field(self, options):
-        off_field = getattr(options['dict'], self.__offset)
-        if not isinstance(off_field, NumericField):
-            raise ValueError("Field length can only be attached \
-                    to a numeric field.")                    
-        opts['length'] = self.__length
+    def before_unpack_field(self, opts):
+        opts['length'] = getattr(opts['obj'], self.__length)
         return True
 
-    def validate(self, struct, value):
-        return
+    def validate(self, obj, value):
+        if isinstance(value, str) and isinstance(self.__length, int) \
+         and len(value) > self.__length:
+            return False
+        return True
