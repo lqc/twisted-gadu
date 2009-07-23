@@ -1,23 +1,32 @@
 # -*- coding: utf-8
 #
-__author__= "lreqc"
+__author__= "Łukasz Rekucki (lqc)"
 __date__ = "$2009-07-13 17:06:21$"
-__doc__ = """Struktury danych pakietów przesyłanych przez Gadu-Gadu w wersji 8.0"""
+__doc__ = """Packet structures for Gadu-Gadu 8.0"""
 
+# standard library stuff
+import hashlib
+import struct
+
+# Cstruct stuff
 from lqsoft.cstruct.common import CStruct
 from lqsoft.cstruct.fields.numeric import *
 from lqsoft.cstruct.fields.text import *
 from lqsoft.cstruct.fields.complex import *
 
-from twistedgadu.util import Enum
 
-import twistedgadu.comm.gadu_base as gadu
 
-import hashlib
-import struct
+# useful helpers
+from lqsoft.utils import Enum
 
-# structures
-class GGStruct_Status80(CStruct):
+# base protocol
+from lqsoft.pygadu.packets import inpacket, outpacket
+from lqsoft.pygadu.network_base import GaduPacket
+
+#
+# COMMON STRUCTURES
+#
+class StructStatus(CStruct):
     uin             = IntField(0)
     status          = IntField(1)
     flags           = IntField(2)
@@ -28,9 +37,54 @@ class GGStruct_Status80(CStruct):
     reserved02      = IntField(7)
     description     = VarcharField(8)
 
-# messages
+class StructConference(CStruct):
+    attr_type       = ByteField(0, default='0x01')
+    rcp_count       = IntField(1)
+    recipients      = ArrayField(2, length='rcp_count', subfield=IntField(0))
 
-class GGMsg_Login80(gadu.GGMsg):
+class StructRichText(CStruct):
+    attr_type       = ByteField(0, default='0x02')
+    length          = UShortField(1)
+    format          = StringField(2, length='length')
+
+class StructMessage(CStruct):
+    CLASS = Enum({
+        'QUEUED':   0x0001,
+        'MESSAGE':  0x0004,
+        'CHAT':     0x0008,
+        'CTCP':     0x0010,
+        'NOACK':    0x0020,
+    })
+
+    klass               = IntField(0)
+    offset_plain        = IntField(1) # tekst
+    offset_attrs        = IntField(2) # atrybuty
+
+    # the message in HTML (the server sometimes forgets to place the 
+    # ending '\0' char, so just cut-off the message at the plain_message offset
+    # encoding: utf-8
+    html_message        = StringField(3, length=property(\
+                    lambda opts: opts['obj'].offset_plain - opts['offset'],\
+                    lambda opts, new_value: new_value ) )
+
+    # the message in plain text
+    # NOTE: encoding is cp1250
+    plain_message       = NullStringField(4, offset='offset_plain')
+
+    # if the message is part of a conference, this includes useful data
+    attr_conference     = StructField(5, struct=StructConference,
+            prefix__ommit="\x01", offset='offset_attrs')
+
+    # additional formating for the plain_message version
+    attr_richtext       = StructField(6, struct=StructRichText, prefix__ommit="\x02")
+
+
+
+#
+# PACKETS
+#
+@outpacket(0x31)
+class LoginPacket(GaduPacket):
     uin             = UIntField(0)
     language        = StringField(1, length=2, default='pl')
     hash_type       = UByteField(2, default=0x02)
@@ -54,60 +108,25 @@ class GGMsg_Login80(gadu.GGMsg):
         hash.update(struct.pack('<i', seed))
         self.login_hash = hash.digest()
 
+@inpacket(0x35)
+class LoginOKPacket(GaduPacket): #LoginOk80
+    reserved       = IntField(0, True)
 
-class GGStruct_Conference(CStruct):
-    attr_type       = ByteField(0, default='0x01')
-    rcp_count       = IntField(1)
-    recipients      = ArrayField(2, length='rcp_count', subfield=IntField(0))
-
-class GGStruct_RichText(CStruct):
-    attr_type       = ByteField(0, default='0x02')
-    length          = UShortField(1)
-    format          = StringField(2, length='length')
-
-def html_message_prop():
-        def html_message_setter(opts, new_value):
-            #opts['obj'].offset_plain = opts['offset'] + len(opts['value'])
-            pass
-
-        def html_message_getter(opts):            
-            return opts['obj'].offset_plain - opts['offset']
-
-        return property(html_message_getter, html_message_setter)
-
-class GGStruct_Message(CStruct):
-    CLASS = Enum({
-        'QUEUED':   0x0001,
-        'MESSAGE':  0x0004,
-        'CHAT':     0x0008,
-        'CTCP':     0x0010,
-        'NOACK':    0x0020,
-    })
-
-    klass               = IntField(0)
-    offset_plain        = IntField(1) # tekst
-    offset_attrs        = IntField(2) # atrybuty
-    html_message        = StringField(3, length=html_message_prop())
-    plain_message       = NullStringField(4, offset='offset_plain')
-    attr_conference     = StructField(5, struct=GGStruct_Conference, prefix__ommit="\x01", offset='offset_attrs')
-    attr_richtext       = StructField(6, struct=GGStruct_RichText, prefix__ommit="\x02")
-
-class GGMsg_RecvMsg80(gadu.GGMsg):
+@inpacket(0x2e)
+class MessageInPacket(GaduPacket): #RecvMsg80
     sender              = IntField(0)
     seq                 = IntField(1)
     time                = IntField(2)
-    content             = StructField(3, struct=GGStruct_Message)
+    content             = StructField(3, struct=StructMessage)
 
-class GGMsg_LoginOk80(gadu.GGMsg):
-    reserved       = IntField(0, True)
-
-# outgoinf messages
-class GGMsg_SendMsg80(gadu.GGMsg):   
+@outpacket(0x2d)
+class MessageOutPacket(GaduPacket):
     recipient           = IntField(0)
     seq                 = IntField(1)
-    content             = StructField(2, struct=GGStruct_Message)
+    content             = StructField(2, struct=StructMessage)
 
-class GGMsg_NewStatus80(gadu.GGMsg):
+@outpacket(0x38)
+class ChangeStatusPacket(GaduPacket): #NewStatus80
     STATUS = Enum({
         'NOT_AVAILBLE':         0x0001,
         'NOT_AVAILBLE_DESC':    0x0015,
@@ -132,15 +151,20 @@ class GGMsg_NewStatus80(gadu.GGMsg):
     flags           = IntField(1)
     description     = VarcharField(2)
 
-class GGMsg_NotifyReply80(gadu.GGMsg):
-    contacts        = ArrayField(0, length=-1, subfield=StructField(0, struct=GGStruct_Status80))
+@inpacket(0x36)
+class StatusUpdatePacket(GaduPacket): # Status80
+    contact         = StructField(0, struct=StructStatus)
 
-class GGMsg_Status80(gadu.GGMsg):
-    contact         = StructField(0, struct=GGStruct_Status80)
+@inpacket(0x37)
+class StatusNoticiesPacket(GaduPacket): # NotifyReply80
+    contacts        = ArrayField(0, length=-1, subfield=StructField(0, struct=StructStatus))
 
-
-# listy kontaktów
-class GGMsg_UserListReq80(gadu.GGMsg):
+#
+# Contact database altering packets
+#
+@outpacket(0x2f)
+class ULRequestPacket(GaduPacket): # UserListReq80
+    """Import contact list from the server"""
     TYPE = Enum({
         'PUT':      0x00,
         'PUT_MORE': 0x01,
@@ -150,7 +174,8 @@ class GGMsg_UserListReq80(gadu.GGMsg):
     type    =   ByteField(0)
     data    =   NullStringField(1)
 
-class GGMsg_UserListReply80(gadu.GGMsg):
+@inpacket(0x30)
+class ULReplyPacket(GaduPacket): # UserListReply80
     TYPE = Enum({
         'PUT_REPLY':        0x00,
         'PUT_REPLY_MORE':   0x02,

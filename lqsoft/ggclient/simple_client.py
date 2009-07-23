@@ -1,19 +1,18 @@
 #!/usr/bin/env python
+# -*- coding: utf-8
 
 __author__="lreqc"
 __date__ ="$2009-07-14 01:54:14$"
 
 import gtk
-from gtk import glade
 
 from twisted.internet import gtk2reactor
 gtk2reactor.install()
 
-from twistedgadu.protocol import GaduClient
-from twistedgadu.models import UserProfile, Contact
+from lqsoft.pygadu.twisted_protocol import GaduClient
+from lqsoft.pygadu.models import UserProfile, Contact
 
 from twisted.internet import reactor, protocol
-from twisted.internet.defer import Deferred
 from twisted.python import log
 
 import sys
@@ -51,47 +50,49 @@ class MainApp(object):
 
         self.factory = GaduClientFactory(profile)
 
-        self.gladefile = "simple_client.glade"
-        self.widgetTree = glade.XML(self.gladefile)
+        self.gtk_builder = gtk.Builder();
+        self.gtk_builder.add_from_file("simple_client.glade")
 
-        self.mainWindow = self.widgetTree.get_widget("MainWindow")
-        self.mainWindow.connect("destroy", self.onWindowClose)
+        self.mainWindow = self.gtk_builder.get_object("RoosterWindow")
+        self.mainWindow.connect("destroy", self.onExit)
 
+        unconnected = self.gtk_builder.connect_signals({
+            'on_menu_connect_activate': self.connectUser,
+            'on_menu_quit_activate': self.onExit,
+           # 'on_menu_about_activate': self.onAbout,
+        })
+        print unconnected
+        
         # status bar
-        self.statusBar = self.widgetTree.get_widget("main_statusbar")
+        #self.statusBar = self.widgetTree.get_widget("main_statusbar")
         
         # extract some widgets
-        self.loginDialog = self.widgetTree.get_widget("LoginDialog")
-        self.loginDialog_uin = self.widgetTree.get_widget("uin_entry")
-        self.loginDialog_pass = self.widgetTree.get_widget("password_entry")
+        #self.loginDialog = self.widgetTree.get_widget("LoginDialog")
+        #self.loginDialog_uin = self.widgetTree.get_widget("uin_entry")
+        #self.loginDialog_pass = self.widgetTree.get_widget("password_entry")
  
-        self.sendButton = self.widgetTree.get_widget("send_button")
-        self.messageEntry = self.widgetTree.get_widget("message_entry")
+        #self.sendButton = self.widgetTree.get_widget("send_button")
+        #self.messageEntry = self.widgetTree.get_widget("message_entry")
 
-        tv = self.widgetTree.get_widget("message_view")
-        self.msgBuf = gtk.TextBuffer()
-        tv.set_buffer(self.msgBuf)
-
-        self.widgetTree.signal_autoconnect({
-            'on_send_button_clicked': self.onMessageSent,
-            'on_menu_quit_activate': self.onWindowClose,
-            'on_menu_connect_activate': self.connectUser,
-            'on_LoginDialog_response': self.loginDialogResponse,
-        })
+        #tv = self.widgetTree.get_widget("message_view")
+        #self.msgBuf = gtk.TextBuffer()
+        #tv.set_buffer(self.msgBuf)
         
         self.mainWindow.show()        
 
     def onMessageSent(self, widget, data=None):
         self.msgBuf.insert_at_cursor('Hello!\n')
 
-    def onWindowClose(self, widget, data=None):
+    def onExit(self, widget, data=None):
         reactor.stop()
         return True
 
     def connectUser(self, widget, *args):
         """This is called when user selects "connect" from the main menu"""
-        self.__status_ctx_id = self.statusBar.get_context_id("Login status")
-        self.statusBar.push(self.__status_ctx_id, "Authenticating...")
+        statusBar = self.gtk_builder.get_object("status_bar")
+
+        self.__status_ctx_id = statusBar.get_context_id("Login status")
+        statusBar.push(self.__status_ctx_id, "Authenticating...")
         
         #quicklogin
         self.profile.uin = 2578178
@@ -107,20 +108,25 @@ class MainApp(object):
             self.profile.uin = int(self.loginDialog_uin.get_text())
             self.profile.password = self.loginDialog_pass.get_text()
 
-            self.statusBar.pop(self.__status_ctx_id)
-            self.statusBar.push(self.__status_ctx_id, "Connecting...")
+            statusBar = self.gtk_builder.get_object("status_bar")
+
+            statusBar.pop(self.__status_ctx_id)
+            statusBar.push(self.__status_ctx_id, "Connecting...")
 
             reactor.connectTCP('91.197.13.83', 8074, self.factory)
         else:
             return False
 
     def loginSuccess(self):
-        self.statusBar.pop(self.__status_ctx_id)
-        self.statusBar.push(self.__status_ctx_id, "Login done.")
+        statusBar = self.gtk_builder.get_object("status_bar")
+        statusBar.pop(self.__status_ctx_id)
+        statusBar.push(self.__status_ctx_id, "Login done.")
 
     def loginFailed(self):
-        self.statusBar.pop(self.__status_ctx_id)
-        self.statusBar.push(self.__status_ctx_id, "Login done.")
+        statusBar = self.gtk_builder.get_object("status_bar")
+        
+        statusBar.pop(self.__status_ctx_id)
+        statusBar.push(self.__status_ctx_id, "Login done.")
 
     def updateContact(self, contact):
         print contact
@@ -135,7 +141,7 @@ if __name__ == '__main__':
 
     user = UserProfile()
     user.putContact(Contact.simple_make(user, 202, 'Blip'))
-    user.putContact(Contact.simple_make(user, 4634020, 'Tester2'))
+    user.putContact(Contact.simple_make(user, 1849224, 'Łukasz Rekucki'))
 
     app = MainApp(user)
 

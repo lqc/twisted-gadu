@@ -18,10 +18,10 @@ class Enum(object):
 
     def __setattr__(self, name, value):
         raise AttributeError('This class in not mutable')
-    
+
 
 def reverse_dict(mapping):
     d = {}
     for (k,v) in mapping.iteritems():
-        d[v] = k        
+        d[v] = k
     return mapping, d

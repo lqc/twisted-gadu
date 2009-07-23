@@ -2,8 +2,8 @@
 __author__="lreqc"
 __date__ ="$2009-07-14 07:33:27$"
 
-import hashlib, struct
-from twistedgadu.comm.gadu_base import GGStruct_Notify
+from lqsoft.pygadu.network_base import StructNotice
+import hashlib
 
 class UserProfile(object):
 
@@ -160,9 +160,9 @@ class Contact(object):
 
     @property
     def notify_flags(self):
-        return int(self.FlagBuddy and GGStruct_Notify.BUDDY) \
-            & int(self.FlagFriend and GGStruct_Notify.FRIEND) \
-            & int(self.FlagIgnore and GGStruct_Notify.IGNORE)
+        return int(self.FlagBuddy and StructNotice.BUDDY) \
+            & int(self.FlagFriend and StructNotice.FRIEND) \
+            & int(self.FlagIgnore and StructNotice.IGNORE)
 
     def exportToXML(self):
         pass

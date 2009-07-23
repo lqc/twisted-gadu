@@ -4,10 +4,11 @@ __date__ ="$2009-07-14 05:51:00$"
 
 from twisted.internet.defer import Deferred
 from twisted.internet.protocol import Protocol
-from twistedgadu.comm.packets import *
-from twistedgadu.comm.gadu_base import GGPacketHeader, GGStruct_Notify
-
 import twisted.python.log as tlog
+
+from lqsoft.pygadu.network import *
+from lqsoft.pygadu.packets import Resolver
+
 import struct
 
 class GaduClient(Protocol):
@@ -27,7 +28,7 @@ class GaduClient(Protocol):
     def connectionMade(self):
         self.__buffer = ''        
         self.__chdr = None
-        # Nie trzeba tu nic robi¿, bo to server pierwszy wysy¿a nam wiadomo¿¿
+        # Nie trzeba tu nic robiï¿½, bo to server pierwszy wysyï¿½a nam wiadomoï¿½ï¿½
 
     def __pop_data(self, n):
         data, self.__buffer = self.__buffer[:n], self.__buffer[n:]
@@ -46,7 +47,7 @@ class GaduClient(Protocol):
                     break
 
                 try:
-                    msg_class = inclass_for_typeid(hdr.msg_type)
+                    msg_class = Resolver.by_IDi(hdr.msg_type)
                 except KeyError, e:
                     self.__pop_data(hdr.msg_length)
                     self._log('Ommiting message with type %d.' % hdr.msg_type)
@@ -57,34 +58,34 @@ class GaduClient(Protocol):
                     self.__chdr = None                  
             else:
                 # we're waiting for a header
-                if len(self.__buffer) < HEADER_LENGTH:
+                if len(self.__buffer) < PACKET_HEADER_LENGTH:
                     # no header yet
                     break
 
-                self.__chdr, _ = GGPacketHeader.unpack(self.__pop_data(HEADER_LENGTH))
+                self.__chdr, _ = GaduPacketHeader.unpack(\
+                    self.__pop_data(PACKET_HEADER_LENGTH))
                 # continue normally
 
         # end of data loop
     
     def _sendPacket(self, msg):
         # wrap the packet with a transport header
-        self.transport.write( msg.as_packet(typeid_for_outclass(msg.__class__)) )
+        self.transport.write( msg.as_packet() )
 
     def _messageReceived(self, hdr, msg):
-        """Called when a full GG message has been received"""
-        _, suffix = msg.__class__.__name__.split('_', 1)
-        self._log("Calling action: " + suffix)
-        getattr(self, '_handle' + suffix, self._log)(msg)
+        """Called when a full GG message has been received"""        
+        self._log("Calling action: " + msg.__class__.__name__)
+        getattr(self, '_handle' + msg.__class__.__name__, self._log)(msg)
 
     # handlers
-    def _handleWelcome(self, msg):
+    def _handleWelcomePacket(self, msg):
         self._log("Welcome seed is: " + str(msg.seed))
         self.__seed = msg.seed
         self.doLogin.callback(self.__seed)
         
     def _doLogin(self, result, *args, **kwargs):
         self._log("Sending creditials to the server.")
-        login_klass = outclass_for_name('Login80')        
+        login_klass = Resolver.by_name('LoginPacket')
         result[1].update( struct.pack("<i", self.__seed) )
         login = login_klass(uin=result[0], login_hash=result[1].digest())
         self._sendPacket(login)
@@ -101,45 +102,44 @@ class GaduClient(Protocol):
         failure.printTraceback()
         self._onLoginFailed(failure, *args, **kawrgs)
 
-    def _handleLoginOk80(self, msg):
+    def _handleLoginOKPacket(self, msg):
         print 'Login almost done - send the notify list.'
         self.loginSuccess.callback(self)
 
-    def _handleLoginFailed(self, msg):
+    def _handleLoginFailedPacket(self, msg):
         print 'Server sent - login failed'
         self.loginSuccess.errback(None)
 
-    def _handleStatus80(self, msg):       
-        self.user_profile._updateContact(msg)
+    def _handleStatusUpdatePacket(self, msg):
+        self.user_profile._updateContact(msg.contact)
         
-    def _handleNotifyReply80(self, msg):
+    def _handleStatusNoticiesPacket(self, msg):
         for struct in msg.contacts:
             self.user_profile._updateContact(struct)
 
-    def _handleRecvMsg80(self, msg):
+    def _handleMessageInPacket(self, msg):
         self.user_profile.onMessageReceived(msg)
 
-
-    def _handleDisconnecting(self, msg):
+    def _handleDisconnectPacket(self, msg):
          self.loseConnection()
 
     def _sendAllContacts(self, result, *args, **kwargs):
         contacts = list( self.user_profile.itercontacts() )
 
         if len(contacts) == 0:
-            self._sendPacket( outclass_for_name('ListEmpty')() )
+            self._sendPacket( Resolver.by_name('NoNoticePacket')() )
             return self
 
-        nl_class = outclass_for_name('NotifyLast')
-        nf_class = outclass_for_name('NotifyFirst')
+        nl_class = Resolver.by_name('NoticeLastPacket')
+        nf_class = Resolver.by_name('NoticeFirstPacket')
 
         while len(contacts) > 400:
             batch, contacts = constacts[:400], contacts[400:]
             self._sendPacket( nf_class(contacts= \
-                [GGStruct_Notify(uin=uin) for (uin, _) in batch]) )
+                [StructNotice(uin=uin) for (uin, _) in batch]) )
 
         self._sendPacket( nl_class(contacts= \
-                [GGStruct_Notify(uin=uin) for (uin, _) in contacts]) )
+                [StructNotice(uin=uin) for (uin, _) in contacts]) )
         self._log("Sent all contacts.")
         return self
 
