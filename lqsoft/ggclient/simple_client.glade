@@ -2,6 +2,11 @@
 <interface>
   <requires lib="gtk+" version="2.16"/>
   <!-- interface-naming-policy toplevel-contextual -->
+  <object class="GtkIconFactory" id="StatusIcons">
+    <sources>
+      <source stock-id="Availble" filename="availble_icon.png"/>
+    </sources>
+  </object>
   <object class="GtkWindow" id="ChatWindow">
     <property name="width_request">600</property>
     <property name="height_request">400</property>
@@ -188,6 +193,16 @@
       <action-widget response="1">cancel_button</action-widget>
     </action-widgets>
   </object>
+  <object class="GtkTreeStore" id="ContactTree">
+    <columns>
+      <!-- column-name name -->
+      <column type="gchararray"/>
+      <!-- column-name status -->
+      <column type="gint"/>
+      <!-- column-name isGroup -->
+      <column type="gboolean"/>
+    </columns>
+  </object>
   <object class="GtkWindow" id="RoosterWindow">
     <property name="window_position">mouse</property>
     <property name="default_width">200</property>
@@ -240,6 +255,33 @@
               </object>
             </child>
             <child>
+              <object class="GtkMenuItem" id="menuitem2">
+                <property name="visible">True</property>
+                <property name="label" translatable="yes">Pr_ofil</property>
+                <property name="use_underline">True</property>
+                <child type="submenu">
+                  <object class="GtkMenu" id="profile_menu">
+                    <property name="visible">True</property>
+                    <child>
+                      <object class="GtkImageMenuItem" id="menu_import_contacts">
+                        <property name="label">Importuj Kontakty</property>
+                        <property name="visible">True</property>
+                        <property name="image">image1</property>
+                        <property name="use_stock">False</property>
+                        <property name="accel_group">accelgroup1</property>
+                        <signal name="activate" handler="on_menu_import_contacts_activate"/>
+                      </object>
+                    </child>
+                    <child>
+                      <object class="GtkSeparatorMenuItem" id="separatormenuitem2">
+                        <property name="visible">True</property>
+                      </object>
+                    </child>
+                  </object>
+                </child>
+              </object>
+            </child>
+            <child>
               <object class="GtkMenuItem" id="menuitem4">
                 <property name="visible">True</property>
                 <property name="label" translatable="yes">Pomo_c</property>
@@ -274,12 +316,52 @@
             <property name="show_border">False</property>
             <property name="homogeneous">True</property>
             <child>
-              <object class="GtkTreeView" id="treeview2">
+              <object class="GtkTreeView" id="ContactTreeView">
                 <property name="visible">True</property>
                 <property name="can_focus">True</property>
                 <property name="model">ContactTree</property>
+                <property name="headers_clickable">False</property>
+                <property name="expander_column">expand</property>
+                <property name="rules_hint">True</property>
+                <property name="enable_search">False</property>
+                <property name="level_indentation">20</property>
                 <property name="enable_grid_lines">horizontal</property>
                 <property name="enable_tree_lines">True</property>
+                <child>
+                  <object class="GtkTreeViewColumn" id="expand">
+                    <property name="sizing">fixed</property>
+                    <property name="fixed_width">26</property>
+                  </object>
+                </child>
+                <child>
+                  <object class="GtkTreeViewColumn" id="treeviewcolumn2">
+                    <property name="sizing">autosize</property>
+                    <property name="min_width">100</property>
+                    <property name="title">Imie</property>
+                    <property name="sort_indicator">True</property>
+                    <child>
+                      <object class="GtkCellRendererText" id="name"/>
+                      <attributes>
+                        <attribute name="text">0</attribute>
+                      </attributes>
+                    </child>
+                  </object>
+                </child>
+                <child>
+                  <object class="GtkTreeViewColumn" id="treeviewcolumn1">
+                    <property name="min_width">32</property>
+                    <property name="title">Status</property>
+                    <property name="sort_indicator">True</property>
+                    <child>
+                      <object class="GtkCellRendererPixbuf" id="cellrendererpixbuf1">
+                        <property name="stock_id">Availble</property>
+                      </object>
+                      <attributes>
+                        <attribute name="visible">2</attribute>
+                      </attributes>
+                    </child>
+                  </object>
+                </child>
               </object>
             </child>
             <child type="tab">
@@ -310,18 +392,8 @@
     </child>
   </object>
   <object class="GtkAccelGroup" id="accelgroup1"/>
-  <object class="GtkListStore" id="ContactTree">
-    <columns>
-      <!-- column-name ggnumber -->
-      <column type="guint"/>
-      <!-- column-name status -->
-      <column type="gchararray"/>
-    </columns>
-    <data>
-      <row>
-        <col id="0">1</col>
-        <col id="1" translatable="yes">Some test data</col>
-      </row>
-    </data>
+  <object class="GtkImage" id="image1">
+    <property name="visible">True</property>
+    <property name="stock">gtk-revert-to-saved</property>
   </object>
 </interface>

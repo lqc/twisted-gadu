@@ -172,7 +172,7 @@ class ULRequestPacket(GaduPacket): # UserListReq80
     })
 
     type    =   ByteField(0)
-    data    =   NullStringField(1)
+    data    =   StringField(1, length=-1)
 
 @inpacket(0x30)
 class ULReplyPacket(GaduPacket): # UserListReply80
@@ -184,4 +184,12 @@ class ULReplyPacket(GaduPacket): # UserListReply80
     })
 
     type    =   ByteField(0)
-    data    =   NullStringField(1)
+    data    =   StringField(1, length=-1)
+
+    @property
+    def is_get(self):
+        return (self.type & self.TYPE.GET_REPLY_MORE)
+
+    @property
+    def is_final(self):
+        return (self.type & 0x02)

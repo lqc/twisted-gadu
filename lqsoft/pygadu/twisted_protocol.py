@@ -25,6 +25,8 @@ class GaduClient(Protocol):
         self.loginSuccess.addCallbacks(profile._loginSuccess, self._onLoginFailed)
         self.loginSuccess.addErrback(self._onLoginFailed)
 
+        self.importrq_cb = None
+
     def connectionMade(self):
         self.__buffer = ''        
         self.__chdr = None
@@ -124,10 +126,10 @@ class GaduClient(Protocol):
          self.loseConnection()
 
     def _sendAllContacts(self, result, *args, **kwargs):
-        contacts = list( self.user_profile.itercontacts() )
+        contacts = list( self.user_profile.contacts )
 
         if len(contacts) == 0:
-            self._sendPacket( Resolver.by_name('NoNoticePacket')() )
+            self._sendPacket( Resolver.by_name('NoNoticesPacket')() )
             return self
 
         nl_class = Resolver.by_name('NoticeLastPacket')
@@ -143,9 +145,45 @@ class GaduClient(Protocol):
         self._log("Sent all contacts.")
         return self
 
+
+
+    def sendImportRequest(self, callback):
+        if self.importrq_cb is not None:
+            raise RuntimeError("There can be only one import request pending.")
+
+        self.importrq_cb = Deferred()
+        self.importrq_cb.addCallbacks(lambda result, *args, **kwargs: callback(result), self._log_failure)
+        self.importrq_cb.addErrback(self._log_failure)
+        self.import_buf = ''
+        
+        klass = Resolver.by_name('ULRequestPacket')
+        self._sendPacket( klass(type=klass.TYPE.GET, data='') )
+
+    def _handleULReplyPacket(self, msg):
+        if msg.is_get:
+            if not self.importrq_cb:
+                self._warn("Unexpected UL_GET reply")
+                return
+                
+            self.import_buf += msg.data
+
+            if msg.is_final:
+                cb = self.importrq_cb
+                self.importrq_cb = None
+                cb.callback(self.import_buf)
+        else:
+            self._log("UL_PUT reply")
+        
     #
     # High-level interface callbacks
     #
 
+    def _warn(self, obj):
+        tlog.warning( str(obj) )
+
     def _log(self, obj):
         tlog.msg( str(obj) )
+
+    def _log_failure(self, failure, *args, **kwargs):
+        print "Failure:"
+        failure.printTraceback()

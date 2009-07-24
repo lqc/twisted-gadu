@@ -3,14 +3,16 @@ __author__="lreqc"
 __date__ ="$2009-07-14 07:33:27$"
 
 from lqsoft.pygadu.network_base import StructNotice
-import hashlib
+import xml.etree.ElementTree as ET
+import hashlib, zlib
 
-class UserProfile(object):
+class GaduProfile(object):
 
-    def __init__(self, contacts={}, hashelem = None):
-        self.uin = 0
-        self.__hashelem = hashelem
-        self.__contacts = contacts
+    def __init__(self, uin):
+        self.uin = uin
+        self.__hashelem = None
+        self.__contacts = {}
+        self.__groups = {}
         self.__connection = None
         
     def __set_password(self, value):
@@ -49,11 +51,18 @@ class UserProfile(object):
         """Is the profile currently used in an active connection"""
         return self.__connection is not None
 
-    def putContact(self, contact):
+    def addContact(self, contact):
+        if self.__contacts.has_key(contact.uin):
+            raise ValueError("Contact with UIN %d already exists." % contact.uin)
+        
         self.__contacts[contact.uin] = contact
-
         if self.connected:
             self.setNotifyState(contact.uin, contact.notify_flags)
+
+    def addGroup(self, group):
+        if self.__groups.has_key(group.Id):
+            raise ValueError("Group %d already exists." % group.Id)
+        self.__groups[group.Id] = group
 
     # stuff that user can use
     def setNotifyState(self, uin, new_state):
@@ -65,8 +74,28 @@ class UserProfile(object):
     def setMyState(self, new_state, new_description=''):
         pass
 
-    def importContacts(self):
-        pass
+    def importContacts(self, callback):
+        """Issue an import request. This is non-blocking and returns no data."""
+        if not self.connected:
+            raise RuntimeError("You need to be connected, to import contact list from the server")
+
+        def parse_xml(data):
+            book = ET.fromstring(zlib.decompress(data))
+            self._flushContacts()
+            
+            for elem in book.find('Groups').getchildren():                
+                self.addGroup( GaduContactGroup.from_xml(elem) )
+
+            for elem in book.find('Contacts').getchildren():
+                self.addContact( GaduContact.from_xml(elem) )
+
+            callback()
+
+        self.__connection.sendImportRequest(parse_xml)
+
+    def _flushContacts(self):
+        self.__contacts = {}
+        self.__groups = {}
 
     def exportContacts(self):
         pass
@@ -94,23 +123,64 @@ class UserProfile(object):
         """Called when a message had been received"""
         pass
 
-    def itercontacts(self):
-        return self.__contacts.iteritems()
+    @property
+    def contacts(self):
+        return self.__contacts.itervalues()
 
 class Def(object):
-    def __init__(self, type, default_value, required=False, exportable=True):
+    def __init__(self, type, default_value, required=False, exportable=True, init=lambda x: x):
         self.type = type
         self.default = default_value
         self.required = required
         self.exportable = exportable
+        self._init = init
+
+    def init(self, value):
+        return self.type( self._init(value) )
         
 def mkdef(*args):
-    return Def(*args) 
+    return Def(*args)
 
-class Contact(object):
+
+class FlatXMLObject(object):
+
+    def __init__(self, **kwargs):
+        for (k, v) in self.SCHEMA.iteritems():
+            if v.required and not kwargs.has_key(k):
+                raise ValueError("You must supply a %s field." % k)
+
+            setattr(self, k, kwargs.get(k, v.default))
+            if not isinstance(getattr(self, k), v.type):
+                raise ValueError("Field %s has to be of class %s." % (k, v.type.__name__))
+
+    @classmethod
+    def from_xml(cls, element):
+        dict = {}
+
+        for (k, v) in cls.SCHEMA.iteritems():
+            elem = element.find("./"+k)
+            if not v.exportable:
+                continue
+                
+            if v.required and elem is None:
+                raise ValueError("Invalid element - need child element %s to unpack." % k)
+
+            dict[k] = v.type(elem.text if elem is not None else v.default)           
+
+        return cls(**dict)          
+
+class GaduContactGroup(FlatXMLObject):
+    SCHEMA = {
+        "Id":           mkdef(str, '', True),
+        "Name":         mkdef(str, '', True),
+        "IsExpanded":   mkdef(bool, True),
+        "IsRemovable":  mkdef(bool, True),
+    }
+    
+
+class GaduContact(FlatXMLObject):
     """Single contact as seen in catalog (person we are watching) - conforming to GG8.0"""
-
-    DEFAULTS = {
+    SCHEMA = {
         'Guid':             mkdef(str, '', True),
         'GGNumber':         mkdef(str, '', True),
         'ShowName':         mkdef(str, '', True),
@@ -124,9 +194,9 @@ class Contact(object):
         'Birth':            mkdef(str, ''),
         'City':             mkdef(str, ''),
         'Province':         mkdef(str, ''),
-        'Groups':           mkdef(list, ['0']),
+        # 'Groups':           mkdef(list, ['0'], init lambda v: [ int(x) for x in v.split() ]),
         'CurrentAvatar':    mkdef(int, 0),
-        'Avatars':          mkdef(list, []),
+        # 'Avatars':          mkdef(list, []),
         'UserActivatedInMG':mkdef(bool, False),
         'FlagBuddy':        mkdef(bool, False),
         'FlagNormal':       mkdef(bool, False),
@@ -141,16 +211,6 @@ class Contact(object):
     def simple_make(cls, profile, uin, name):
         return cls(profile, Guid=str(uin), GGNumber=str(uin), ShowName=name)
 
-    def __init__(self, profile, **kwargs):
-
-        for (k, v) in self.DEFAULTS.iteritems():
-            if v.required and not kwargs.has_key(k):
-                raise ValueError("You must supply a %s field." % k)
-
-            setattr(self, k, kwargs.get(k, v.default))
-            if not isinstance(getattr(self, k), v.type):
-                raise ValueError("Field %s has to be of class %s." % (k, v.type.__name__)) 
-
     def __str__(self):
         return "[%s,%d: %s]" % (self.GGNumber, self.status, self.description)
 
@@ -160,12 +220,9 @@ class Contact(object):
 
     @property
     def notify_flags(self):
-        return int(self.FlagBuddy and StructNotice.BUDDY) \
-            & int(self.FlagFriend and StructNotice.FRIEND) \
-            & int(self.FlagIgnore and StructNotice.IGNORE)
-
-    def exportToXML(self):
-        pass
+        return int(self.FlagBuddy and StructNotice.TYPE.BUDDY) \
+            & int(self.FlagFriend and StructNotice.TYPE.FRIEND) \
+            & int(self.FlagIgnored and StructNotice.TYPE.IGNORE)
 
     def updateStatus(self, status, desc=None):
         self.status = status
