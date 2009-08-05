@@ -74,10 +74,15 @@ class GaduProfile(object):
     def setMyState(self, new_state, new_description=''):
         pass
 
+    def sendTo(self, uin, message):
+        if not self.connected:
+            raise RuntimeError("You need to be connected, to send messages.")
+        self.__connection.sendHTMLMessage(uin, message + '\0')
+
     def importContacts(self, callback):
         """Issue an import request. This is non-blocking and returns no data."""
         if not self.connected:
-            raise RuntimeError("You need to be connected, to import contact list from the server")
+            raise RuntimeError("You need to be connected, to import contact list from the server.")
 
         def parse_xml(data):
             book = ET.fromstring(zlib.decompress(data))

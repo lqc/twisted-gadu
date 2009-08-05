@@ -38,14 +38,21 @@ class StructStatus(CStruct):
     description     = VarcharField(8)
 
 class StructConference(CStruct):
-    attr_type       = ByteField(0, default='0x01')
+    attr_type       = ByteField(0, default=0x01)
     rcp_count       = IntField(1)
     recipients      = ArrayField(2, length='rcp_count', subfield=IntField(0))
 
 class StructRichText(CStruct):
-    attr_type       = ByteField(0, default='0x02')
+    attr_type       = ByteField(0, default=0x02)
     length          = UShortField(1)
-    format          = StringField(2, length='length')
+    format          = StringField(2, length='length', default='\x00\x00\x08\x00\x00\x00')
+
+class StructMsgAttrs(CStruct):
+    conference     = StructField(0, struct=StructConference, prefix__ommit="\x01")
+
+    # additional formating for the plain_message version
+    richtext       = StructField(1, struct=StructRichText, prefix__ommit="\x02")
+
 
 class StructMessage(CStruct):
     CLASS = Enum({
@@ -72,13 +79,7 @@ class StructMessage(CStruct):
     plain_message       = NullStringField(4, offset='offset_plain')
 
     # if the message is part of a conference, this includes useful data
-    attr_conference     = StructField(5, struct=StructConference,
-            prefix__ommit="\x01", offset='offset_attrs')
-
-    # additional formating for the plain_message version
-    attr_richtext       = StructField(6, struct=StructRichText, prefix__ommit="\x02")
-
-
+    attrs               = StructField(5, struct=StructMsgAttrs, offset='offset_attrs')
 
 #
 # PACKETS
@@ -121,7 +122,7 @@ class MessageInPacket(GaduPacket): #RecvMsg80
 
 @outpacket(0x2d)
 class MessageOutPacket(GaduPacket):
-    recipient           = IntField(0)
+    recipient           = IntField(0, default=None)
     seq                 = IntField(1)
     content             = StructField(2, struct=StructMessage)
 

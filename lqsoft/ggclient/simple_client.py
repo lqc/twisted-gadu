@@ -104,7 +104,9 @@ class MainApp(object):
         #self.loginDialog.show()
 
     def importContacts(self, widget, *args):
-        self.config.profile.importContacts(self.refreshContactList)
+        txt = """<b>Gżegżółka</b>"""
+        # self.config.profile.importContacts(self.refreshContactList)
+        self.config.profile.sendTo(1849224, txt)
 
     def refreshContactList(self):
         self.contactTree.clear()

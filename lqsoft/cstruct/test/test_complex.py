@@ -74,4 +74,34 @@ class StructFieldTest(unittest.TestCase):
         data = s.pack()
         print repr(data)
         self.assertEqual( data[4:-4], self.inner_data )
-        
+
+    def testGaduMsgOut(self):
+        from lqsoft.pygadu.network import *
+        import time
+
+        html_text = """<span style="color:#000000; font-family:'MS Shell Dlg 2'; font-size:12pt; ">ala</span>"""
+        rcpt = 1849224
+        klass = MessageOutPacket
+        attrs = StructMsgAttrs()
+        attrs.richtext = StructRichText()
+
+        payload = StructMessage(klass=StructMessage.CLASS.CHAT, \
+            html_message=html_text, plain_message='ala\0', \
+            attrs = attrs)
+
+        packet = klass( recipient=rcpt, seq=int(time.time()), content=payload)
+        data = packet.as_packet()
+        print
+        for (i, b) in enumerate(data):           
+            print '%02x' % ord(b),
+            if (i+1)%8 == 0: print
+
+        print packet.content.offset_plain
+        print repr(data[8+packet.content.offset_plain:])
+        print packet.content.offset_attrs
+
+if __name__ == '__main__':
+    import lqsoft.cstruct.test.test_complex
+    
+    suite = unittest.TestLoader().loadTestsFromName('StructFieldTest.testGaduMsgOut', lqsoft.cstruct.test.test_complex)
+    unittest.TextTestRunner(verbosity=2).run(suite)

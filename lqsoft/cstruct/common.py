@@ -204,24 +204,22 @@ class CStruct(object):
         for field in self._field_order:            
             setattr(self, field.name, kwargs.get(field.name,field.default))
 
-    def _before_pack(self):
-        offset=0
+    def _before_pack(self, offset=0):        
         for field in self._field_order:
             offset += field.before_pack(self, offset)
         return offset
 
-    def _pack(self):
+    def _pack(self, off=0):
         s = ''
-        off = 0
         for field in self._field_order:
             data = field.pack(self, off)
             off += len(data)
             s += data
         return s
 
-    def pack(self):
-        self._before_pack()
-        return self._pack()        
+    def pack(self, offset=0):
+        self._before_pack(offset)
+        return self._pack(offset)
 
     @classmethod
     def unpack(cls, data, offset=0):
@@ -245,7 +243,7 @@ class CStruct(object):
 
     def __str__(self):
         buf = "CStruct("
-        buf += ','.join( "%s = %s" % (field.name, self.__field_value(field)) \
+        buf += ','.join( "%s = %r" % (field.name, self.__field_value(field)) \
             for field in self._field_order )
         buf += ")"
         return buf

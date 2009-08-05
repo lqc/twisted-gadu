@@ -4,12 +4,13 @@ __date__ ="$2009-07-14 05:51:00$"
 
 from twisted.internet.defer import Deferred
 from twisted.internet.protocol import Protocol
+from twisted.internet import task
 import twisted.python.log as tlog
 
 from lqsoft.pygadu.network import *
 from lqsoft.pygadu.packets import Resolver
 
-import struct
+import struct, time
 
 class GaduClient(Protocol):
     
@@ -26,11 +27,19 @@ class GaduClient(Protocol):
         self.loginSuccess.addErrback(self._onLoginFailed)
 
         self.importrq_cb = None
+        self.__pingThread = None
 
     def connectionMade(self):
         self.__buffer = ''        
         self.__chdr = None
-        # Nie trzeba tu nic robi�, bo to server pierwszy wysy�a nam wiadomo��
+        # Nie trzeba tu nic robi�, bo to server pierwszy wysyła nam wiadomość
+
+    def connectionLost(self, reason):
+        if self.__pingThread:
+            self.__pingThread.stop()
+            self.__pingThread = None
+
+        Protocol.connectionLost(self, reason)      
 
     def __pop_data(self, n):
         data, self.__buffer = self.__buffer[:n], self.__buffer[n:]
@@ -106,6 +115,8 @@ class GaduClient(Protocol):
 
     def _handleLoginOKPacket(self, msg):
         print 'Login almost done - send the notify list.'
+        self.__pingThread = task.LoopingCall(self.sendPing)
+        self.__pingThread.start(180.0)
         self.loginSuccess.callback(self)
 
     def _handleLoginFailedPacket(self, msg):
@@ -121,6 +132,9 @@ class GaduClient(Protocol):
 
     def _handleMessageInPacket(self, msg):
         self.user_profile.onMessageReceived(msg)
+
+    def _handleMessageAckPacket(self, msg):
+        print "MSG_Status=%x, recipient=%d, seq=%d" % (msg.msg_status, msg.recipient, msg.seq) 
 
     def _handleDisconnectPacket(self, msg):
          self.loseConnection()
@@ -145,7 +159,20 @@ class GaduClient(Protocol):
         self._log("Sent all contacts.")
         return self
 
+    def sendPing(self):
+        self._sendPacket( Resolver.by_name('PingPacket')() )
 
+    def sendHTMLMessage(self, rcpt, html_text):
+        klass = Resolver.by_name('MessageOutPacket')
+
+        attrs = StructMsgAttrs()
+        attrs.richtext = StructRichText()
+
+        payload = StructMessage(klass=StructMessage.CLASS.CHAT, \
+            html_message=html_text, plain_message='TEST\0', \
+            attrs = attrs)
+
+        self._sendPacket( klass( recipient=rcpt, seq=int(time.time()), content=payload) )
 
     def sendImportRequest(self, callback):
         if self.importrq_cb is not None:

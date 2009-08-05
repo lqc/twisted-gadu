@@ -118,13 +118,23 @@ class StructField(CField):
         value = getattr(obj, self.name)
         if (value == None) and self.nullable:
             return 0 # field is ommited
-        return value._before_pack()
+
+        opts.update({'field': self, 'obj': obj, 'value': value, 'offset': offset})
+        for c in reversed(self.constraints):
+            c.before_pack(opts)
+
+        return value._before_pack(offset)
 
     def pack(self, obj, offset, **opts):
         value = getattr(obj, self.name)
         if (value == None) and self.nullable:
             return '' # field is ommited
-        return value._pack()
+
+        opts.update({'field': self, 'obj': obj, 'value': value, 'offset': offset})
+        for c in reversed(self.constraints):
+            c.pack(opts)
+
+        return value._pack(offset)
 
     def _retrieve_value(self, opts):
         return self._struct_klass.unpack(opts['data'], opts['offset'])
