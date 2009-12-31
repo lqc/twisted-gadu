@@ -1,8 +1,9 @@
 #!/usr/bin/env python
 # -*- coding: utf-8
+from __future__ import with_statement
 
-__author__="lreqc"
-__date__ ="$2009-07-14 01:54:14$"
+__author__ = "lreqc"
+__date__ = "$2009-07-14 01:54:14$"
 
 import gtk
 import xml.etree.ElementTree as ET
@@ -43,7 +44,7 @@ class MainApp(object):
 
     def __init__(self, config):
         self.config = config
-        self.factory = GaduClientFactory(config)       
+        self.factory = GaduClientFactory(config)
 
         self.gtk_builder = gtk.Builder();
         self.gtk_builder.add_from_file("simple_client.glade")
@@ -60,28 +61,28 @@ class MainApp(object):
            # 'on_menu_about_activate': self.onAbout,
         })
         print unconnected
-        
+
         # status bar
         #self.statusBar = self.widgetTree.get_widget("main_statusbar")
-        
+
         # extract some widgets
         #self.loginDialog = self.widgetTree.get_widget("LoginDialog")
         #self.loginDialog_uin = self.widgetTree.get_widget("uin_entry")
         #self.loginDialog_pass = self.widgetTree.get_widget("password_entry")
- 
+
         #self.sendButton = self.widgetTree.get_widget("send_button")
         #self.messageEntry = self.widgetTree.get_widget("message_entry")
 
         #tv = self.widgetTree.get_widget("message_view")
         #self.msgBuf = gtk.TextBuffer()
         #tv.set_buffer(self.msgBuf)
-        
-        self.mainWindow.show()        
 
-    def onMessageSent(self, widget, data=None):
+        self.mainWindow.show()
+
+    def onMessageSent(self, widget, data = None):
         self.msgBuf.insert_at_cursor('Hello!\n')
 
-    def onExit(self, widget, data=None):
+    def onExit(self, widget, data = None):
         reactor.stop()
         return True
 
@@ -98,7 +99,7 @@ class MainApp(object):
 
         self.__status_ctx_id = statusBar.get_context_id("Login status")
         statusBar.push(self.__status_ctx_id, "Authenticating...")
-        
+
         reactor.connectTCP('91.197.13.83', 8074, self.factory)
 
         #self.loginDialog.show()
@@ -111,11 +112,11 @@ class MainApp(object):
     def refreshContactList(self):
         self.contactTree.clear()
 
-        all_g = self.contactTree.append(None, row=("ALL", 0, False) )
+        all_g = self.contactTree.append(None, row = ("ALL", 0, False))
 
         for contact in self.config.profile.contacts:
-            self.contactTree.append(all_g,\
-                row=(contact.ShowName, contact.status, True) )
+            self.contactTree.append(all_g, \
+                row = (contact.ShowName, contact.status, True))
 
     def loginDialogResponse(self, widget, response_id, *args):
         self.loginDialog.destroy()
@@ -140,7 +141,7 @@ class MainApp(object):
 
     def loginFailed(self):
         statusBar = self.gtk_builder.get_object("status_bar")
-        
+
         statusBar.pop(self.__status_ctx_id)
         statusBar.push(self.__status_ctx_id, "Login done.")
 
@@ -158,14 +159,14 @@ class Config(object):
         self.profiles = {}
 
         for profile_xml in config_xml.findall('gadu-profile'):
-            profile = GaduProfile(uin= int(profile_xml.find('uin').text) )
+            profile = GaduProfile(uin = int(profile_xml.find('uin').text))
             profile.password = profile_xml.find('password').text
 
             for elem in profile_xml.find('Groups').getchildren():
-                profile.addContactGroup( GaduContactGroup.from_xml(elem) )
+                profile.addContactGroup(GaduContactGroup.from_xml(elem))
 
             for elem in profile_xml.find('Contacts').getchildren():
-                profile.addContact( GaduContact.from_xml(elem) )
+                profile.addContact(GaduContact.from_xml(elem))
 
             self.profiles[profile.uin] = profile
 
@@ -206,10 +207,10 @@ if __name__ == '__main__':
         init_defaults()
 
     config = Config(config_path)
-    
+
     # initialize logging
     log.startLogging(sys.stdout)
 
     # run
-    app = MainApp( config )
+    app = MainApp(config)
     reactor.run()
